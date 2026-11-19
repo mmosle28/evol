@@ -1,68 +1,89 @@
-// Offline evolution: if the AI is unavailable, build a life from the traits with seeded random picks.
-// It's simpler than what the AI writes, but it follows the same rules, so the game always works.
+// Offline versions of everything the AI writes, used only if the AI can't answer.
+// Simpler than the AI's, but built from the same traits so the game still makes sense.
 
 import { makeRng } from "../core/rng.js";
 import { traitTags } from "./traits.js";
+import { QUIZ_KINDS } from "../gfx/models.js";
 
+const SYL = ["ko", "ra", "vel", "mo", "thi", "zan", "ul", "pe", "dra", "su", "gor", "lu", "fen", "ka", "ri", "osh", "mi", "to"];
 const THEMES = {
-  toolmaker: { props: "gears", world: ["Cogmarsh", "Rivet Hollow", "The Clockfen"], currency: "gears", ground: "#3a3a40", ground2: "#46464e", accent: "#e0a63a",
-    jobs: [["Bolt Catcher", ["bolt", "spring", "cog"], ["rust flake", "loose wire"]], ["Gear Forger", [], []], ["Engine Tinker", [], ["oil", "brass", "spring", "coil", "valve"]]] },
-  mystic: { props: "crystals", world: ["Lumen Deep", "The Glowfields", "Starwell"], currency: "glimmers", ground: "#2a2440", ground2: "#332c4f", accent: "#9ef0e0",
-    jobs: [["Star Gatherer", ["starlight", "glow moth", "moon drop"], ["shadow", "void dust"]], ["Crystal Tuner", [], []], ["Potion Mixer", [], ["moonmilk", "ember", "dew", "spore", "glow salt"]]] },
-  grazer: { props: "mushrooms", world: ["Mossmere", "The Soft Meadow", "Fernwold"], currency: "seeds", ground: "#2f4a2c", ground2: "#3a5a36", accent: "#f2d16b",
-    jobs: [["Berry Picker", ["berry", "clover", "sweet root"], ["thorn", "bitter cap"]], ["Seed Planter", [], []], ["Stew Cook", [], ["moss", "root", "berry", "leaf", "honeydew"]]] },
-  predator: { props: "bones", world: ["Fang Reef", "The Hunting Flats", "Ridgebite"], currency: "teeth", ground: "#4a3a2c", ground2: "#57442f", accent: "#f08a50",
-    jobs: [["Night Hunter", ["beetle", "eel", "crab"], ["spiny fish", "decoy"]], ["Bone Carver", [], []], ["Feast Cook", [], ["marrow", "salt", "fat", "pepper", "smoke"]]] },
-  deep: { props: "coral", world: ["The Dim Shelf", "Coralgloom", "Undertide"], currency: "pearls", ground: "#163a44", ground2: "#1d4652", accent: "#7fe0d0",
-    jobs: [["Pearl Diver", ["pearl", "sea glass", "clam"], ["urchin", "jelly"]], ["Current Keeper", [], []], ["Kelp Chef", [], ["kelp", "brine", "clam", "sponge", "salt"]]] },
-  explorer: { props: "trees", world: ["The Wide Reach", "Windcrest", "Far Isles"], currency: "maps", ground: "#2c4a3a", ground2: "#355a46", accent: "#f2b91c",
-    jobs: [["Map Courier", ["letter", "map", "compass"], ["storm", "mud"]], ["Signal Keeper", [], []], ["Trail Cook", [], ["nut", "berry", "salt", "herb", "flatbread"]]] }
+  toolmaker: { props: "gears", world: "Kanemachi", res: ["copper coil", "bent nail", "glass bead"], project: "the clock tower" },
+  mystic: { props: "crystals", world: "Hoshizora", res: ["moon pebble", "glow moss", "star shard"], project: "the night shrine" },
+  hunter: { props: "trees", world: "Tonbo Hill", res: ["river reed", "smooth stone", "pine cone"], project: "the lookout" },
+  predator: { props: "bones", world: "Kibagawa", res: ["old bone", "red clay", "driftwood"], project: "the long bridge" },
+  grazer: { props: "mushrooms", world: "Nohara", res: ["clover", "wild berry", "soft moss"], project: "the community garden" },
+  explorer: { props: "pipes", world: "Kazemura", res: ["paper map", "feather", "sea glass"], project: "the signal tower" }
 };
 
-const SYL = ["ko", "ra", "vel", "mo", "thi", "zan", "ul", "pe", "dra", "si", "gor", "lu", "fen", "ka", "ri", "osh"];
+// Doki Doki style questions: everyday and a little absurd. Each answer nudges personality axes.
+const QUIZ = [
+  { q: "How do you usually eat watermelon?", a: [["Seeds and all, no regrets", { bold: 1, playful: 1 }, "Fearless. The seeds respect you."], ["Carefully remove every seed", { calm: 1, driven: 1 }, "Patience like that is rare."], ["Share it with whoever's around", { kind: 1, social: 1 }, "A watermelon is a group project anyway."]] },
+  { q: "A cloud looks exactly like you. What do you do?", a: [["Wave at it", { playful: 1, social: 1 }, "It waved back. Probably."], ["Take a picture for proof", { curious: 1, driven: 1 }, "Evidence is important."], ["Wonder if you look like a cloud", { calm: 1, curious: 1 }, "Deep. Very deep."]] },
+  { q: "You find a door in a field with nothing behind it. Do you open it?", a: [["Obviously", { bold: 1, curious: 1 }, "Of course you did."], ["Knock first", { kind: 1, calm: 1 }, "Polite, even to doors."], ["Leave it closed. Some doors are fine", { calm: 1 }, "Wise. Or scared. Who knows."]] },
+  { q: "If you could only say one word all summer, which?", a: [["Again!", { playful: 1, driven: 1 }, "A summer that never ends."], ["Thanks", { kind: 1, social: 1 }, "Everyone would like you."], ["Why?", { curious: 2 }, "You'd drive everyone a little crazy."]] },
+  { q: "The ice cream truck is leaving. You...", a: [["Sprint after it", { bold: 1, driven: 1 }, "Speed is a kind of love."], ["Let it go. There's always tomorrow", { calm: 1 }, "Very zen of you."], ["Yell for everyone to come", { social: 2 }, "A true leader of snacks."]] },
+  { q: "Which would you rather keep forever: a jar of fireflies or a jar of thunder?", a: [["Fireflies", { kind: 1, calm: 1 }, "Soft light, soft heart."], ["Thunder", { bold: 2 }, "Loud. Interesting."], ["Open both and see what happens", { curious: 1, playful: 1 }, "Chaos, but educational."]] }
+];
 
 export function fallbackLife(traits, seed) {
   const rng = makeRng(seed ^ 0x5bd1e995);
   const tags = traitTags(traits);
-  const themeKey = ["toolmaker", "mystic", "deep", "predator", "grazer", "explorer"].find(k => tags.includes(k) || (k === "predator" && tags.includes("hunter"))) || "explorer";
-  const th = THEMES[themeKey];
-  const name = () => { const n = rng.pick(SYL) + rng.pick(SYL) + (rng.chance(0.5) ? rng.pick(SYL) : ""); return n[0].toUpperCase() + n.slice(1); };
-
+  const key = ["toolmaker", "mystic", "predator", "hunter", "grazer", "explorer"].find(k => tags.includes(k)) || "explorer";
+  const th = THEMES[key];
+  const name = () => { const n = rng.pick(SYL) + rng.pick(SYL) + (rng.chance(0.4) ? rng.pick(SYL) : ""); return n[0].toUpperCase() + n.slice(1); };
   const features = [];
   if (tags.includes("tailless")) features.push("stumpTail");
-  if (tags.includes("scarred") || tags.includes("daring")) features.push("horns");
+  if (tags.includes("fighter")) features.push("horns");
   if (tags.includes("cautious")) features.push("shell");
   if (tags.includes("toolmaker")) features.push("gears");
   if (tags.includes("mystic")) features.push("glow");
   if (tags.includes("social")) features.push("frills");
-  if (tags.includes("hunter") || tags.includes("predator")) features.push("spikes");
-  const creatureName = name();
-  const worldName = rng.pick(th.world);
-
-  const job = (i, tpl) => ({
-    name: th.jobs[i][0], template: tpl, blurb: `Work as a ${th.jobs[i][0].toLowerCase()} in ${worldName}.`,
-    good: th.jobs[0][1], bad: th.jobs[0][2], ingredients: th.jobs[2][2], pay: 6 + i * 2
-  });
-  const npcBody = () => ({ shape: rng.pick(["round", "long", "tall", "blob"]), color: th.accent, accent: "#ffffff", eyes: rng.int(1, 3), limbs: rng.int(0, 4), limbType: rng.pick(["legs", "fins", "tentacles"]), features: [] });
-
+  if (tags.includes("predator") || tags.includes("hunter")) features.push("spikes");
+  const nm = name();
+  const order = [...QUIZ].sort(() => rng() - 0.5);
   return {
     creature: {
-      name: creatureName,
-      description: `A ${tags.includes("tailless") ? "slow, sturdy" : "quick"} creature shaped by ${tags.slice(0, 3).join(", ")} habits.`,
-      because: `Because you ${tags.includes("toolmaker") ? "picked up a stick" : tags.includes("grazer") ? "lived on pondweed" : tags.includes("explorer") ? "explored the pond" : "survived the pond your own way"}.`,
-      body: {
-        shape: tags.includes("tailless") ? "round" : tags.includes("explorer") ? "long" : rng.pick(["round", "tall", "blob", "spiky"]),
-        color: rng.pick(["#e0864a", "#5aa7c9", "#9a6ad6", "#6fbf73", "#d65a6a"]),
-        accent: th.accent,
-        eyes: tags.includes("cautious") ? 3 : rng.int(1, 3),
-        limbs: tags.includes("explorer") ? 4 : rng.int(0, 4),
-        limbType: tags.includes("skyward") ? "wings" : tags.includes("deep") ? "tentacles" : tags.includes("tailless") ? "legs" : "fins",
-        features: features.slice(0, 4)
-      }
+      name: nm,
+      description: `A ${tags.includes("tailless") ? "slow, sturdy" : "quick"} little creature that grew out of a ${tags[0]} fish.`,
+      because: tags.includes("tailless") ? "Because you lost your tail and kept going, you walk on sturdy legs now." : `Because you lived as a ${tags[0]}, your body leaned that way.`,
+      body: { shape: tags.includes("tailless") ? "round" : tags.includes("explorer") ? "long" : rng.pick(["round", "tall", "blob", "spiky"]), eyes: tags.includes("cautious") ? 3 : 2, limbs: tags.includes("explorer") ? 4 : 2, limbType: tags.includes("tailless") ? "legs" : rng.pick(["legs", "fins", "wings"]), features: features.slice(0, 4) }
     },
-    world: { name: worldName, description: `A world built around creatures like ${creatureName}.`, props: th.props, ground: th.ground, ground2: th.ground2, accent: th.accent, currency: th.currency },
-    npcs: [0, 1, 2].map(i => ({ name: name(), role: ["shopkeeper", "elder", "rival"][i], personality: ["chatty and kind", "slow and wise", "proud and competitive"][i], body: npcBody() })),
-    jobs: [job(0, "catch"), job(1, "timing"), job(2, "recipe")],
-    oracle: { name: "The Still Pool", form: "a pool of water that talks back" }
+    world: { name: th.world, description: `A sleepy summer village where creatures like ${nm} live.`, props: th.props, project: th.project, projectNeeds: 9 },
+    resources: th.res,
+    critters: [{ name: "summer hopper" }, { name: "dusk buzzer" }],
+    villagers: [0, 1, 2, 3].map(i => ({ name: name(), role: ["shopkeeper", "old fisher", "kid next door", "mail carrier"][i], personality: ["chatty and kind", "slow and wise", "loud and restless", "always late, always smiling"][i], body: { shape: rng.pick(["round", "tall", "blob", "long"]), eyes: rng.int(1, 3), limbs: rng.int(0, 4), limbType: rng.pick(["legs", "tentacles", "fins"]), features: [] }, wants: i % 3, count: 2 + (i % 3), request: "" })),
+    quiz: order.map((q, i) => ({ kind: QUIZ_KINDS[i % QUIZ_KINDS.length], name: ["a talking watermelon", "an old vending machine", "a red mailbox", "a scarecrow", "a dusty radio", "a temple bell"][i % 6], question: q.q, answers: q.a.map(([text, axes, reply]) => ({ text, axes, reply })) }))
+  };
+}
+
+export function fallbackTalk(v, life) {
+  return {
+    line: `Oh, a ${life.creature.name}! I'm ${v.name}. Hot one today, huh? What brings you out this way?`,
+    a: "Just wandering", b: "Looking for something to do",
+    replyA: "Wandering's the best part of summer.", replyB: `Then help me find some ${life.resources[v.wants]}, would you?`,
+    axesA: { calm: 1 }, axesB: { driven: 1 }
+  };
+}
+
+export function fallbackDiary(day, log) {
+  const things = log.filter(l => l.day === day).slice(-4).map(l => l.text.toLowerCase());
+  return {
+    entry: `Day ${day}. ${things.length ? "Today I " + things.join(", then I ") + "." : "Today I mostly walked around and looked at the sky."} The cicadas were so loud. I want tomorrow to come fast.`,
+    sticker: "The Wanderer",
+    note: "You seem to collect moments more than things."
+  };
+}
+
+export function fallbackReading(axes) {
+  const top = Object.entries(axes).sort((a, b) => b[1] - a[1]);
+  const names = { curious: "Door Opener", kind: "Umbrella Holder", bold: "Thunder Jar", calm: "Still Pond", social: "Bonfire Starter", playful: "Puddle Jumper", driven: "Early Bird" };
+  return {
+    archetype: `The ${names[top[0][0]]}`,
+    lines: [
+      `Your strongest pull was being ${top[0][0]}, with a streak of ${top[1][0]} right behind it.`,
+      `You were least ${top[top.length - 1][0]}. That's not a flaw, it's where you have room to surprise yourself.`,
+      "Next summer, try doing the thing you'd normally skip."
+    ],
+    question: "What would you do differently if nobody was keeping score?"
   };
 }

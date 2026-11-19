@@ -6,19 +6,18 @@
 <title>Evol</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Klee+One:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- The whole game draws into this canvas at 1280x720 and is scaled to fit the window. -->
-  <main id="stage">
-    <canvas id="game" width="1280" height="720" aria-label="Evol game"></canvas>
-  </main>
-  <!-- Controller bar: connect the Arduino joystick, or play with the keyboard. -->
-  <div id="controller">
-    <button id="connectBtn" type="button">Connect joystick (USB)</button>
-    <span id="ctrlStatus">Keyboard: arrows or WASD to move, Space to act</span>
+  <!-- Two stacked canvases: the 3D world (WebGL) and the 2D overlay for text and menus. -->
+  <div id="wrap">
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <canvas id="ui" width="1280" height="720" aria-label="Evol"></canvas>
+    <button id="connectBtn" type="button">Connect joystick</button>
   </div>
+  <!-- Three.js r128 (MIT license, see js/vendor/THREE-LICENSE.txt), shipped with the game so it works offline. -->
+  <script src="js/vendor/three.min.js"></script>
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

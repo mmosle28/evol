@@ -1,40 +1,25 @@
-// Drawing helpers shared by every scene: fonts, text wrapping, panels, easing.
+// 2D overlay drawing: text, dialogue boxes, choices, prompts. The overlay is 1280x720 and sits on top of the 3D view.
+
+import { UI, FONT } from "./palette.js";
 
 export const W = 1280, H = 720;
-export const FONT_DISPLAY = '"Bricolage Grotesque", system-ui, sans-serif';
-export const FONT_BODY = '"Figtree", system-ui, sans-serif';
 
-export const UI = {
-  ink: "#eef2ee",
-  muted: "#9fb1ab",
-  accent: "#f2b91c",
-  panel: "rgba(10, 16, 18, 0.86)",
-  panelLine: "rgba(255, 255, 255, 0.12)",
-  good: "#6fd39b",
-  bad: "#f08a80"
-};
+export function font(size, weight = 500, family = FONT.ui) { return `${weight} ${size}px ${family}`; }
 
-export function font(size, weight = 600, display = false) {
-  return `${weight} ${size}px ${display ? FONT_DISPLAY : FONT_BODY}`;
-}
-
-/** Draw text wrapped to a width. Returns the y after the last line. */
+/** Draw wrapped text. Returns the y after the last line. */
 export function wrapText(g, text, x, y, maxW, lineH, align = "left") {
   g.textAlign = align;
   const words = String(text || "").split(/\s+/);
   let line = "";
   for (const w of words) {
     const test = line ? line + " " + w : w;
-    if (g.measureText(test).width > maxW && line) {
-      g.fillText(line, x, y);
-      line = w; y += lineH;
-    } else line = test;
+    if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); line = w; y += lineH; }
+    else line = test;
   }
   if (line) { g.fillText(line, x, y); y += lineH; }
   return y;
 }
 
-/** Count the lines wrapText would use (for sizing panels). */
 export function countLines(g, text, maxW) {
   const words = String(text || "").split(/\s+/);
   let line = "", n = 0;
@@ -45,53 +30,68 @@ export function countLines(g, text, maxW) {
   return n + (line ? 1 : 0);
 }
 
-export function roundRect(g, x, y, w, h, r) {
+export function rect(g, x, y, w, h, r = 0) {
   g.beginPath();
-  g.moveTo(x + r, y);
-  g.arcTo(x + w, y, x + w, y + h, r);
-  g.arcTo(x + w, y + h, x, y + h, r);
-  g.arcTo(x, y + h, x, y, r);
-  g.arcTo(x, y, x + w, y, r);
-  g.closePath();
+  if (!r) { g.rect(x, y, w, h); return; }
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
 
-export function panel(g, x, y, w, h, r = 18) {
-  g.fillStyle = UI.panel;
-  roundRect(g, x, y, w, h, r);
-  g.fill();
-  g.strokeStyle = UI.panelLine;
-  g.lineWidth = 2;
-  g.stroke();
+/** A clean white box with a hard red edge, the game's panel style. */
+export function box(g, x, y, w, h) {
+  g.fillStyle = UI.shadow; g.fillRect(x + 6, y + 6, w, h);
+  g.fillStyle = UI.paper; g.fillRect(x, y, w, h);
+  g.strokeStyle = UI.ink; g.lineWidth = 2; g.strokeRect(x, y, w, h);
 }
 
-/** A row of choice buttons; the selected one is highlighted. */
-export function choiceButtons(g, options, selected, x, y, w, h = 64, gap = 18) {
+/** Dialogue box along the bottom with a red name tag. */
+export function dialogue(g, name, text, opts = {}) {
+  const x = 120, w = W - 240, y = opts.y || 470, h = opts.h || 200;
+  box(g, x, y, w, h);
+  if (name) {
+    g.font = font(22, 900);
+    const nw = g.measureText(name).width + 36;
+    g.fillStyle = UI.red; g.fillRect(x + 24, y - 20, nw, 40);
+    g.fillStyle = UI.white; g.textAlign = "left"; g.fillText(name, x + 42, y + 8);
+  }
+  g.fillStyle = UI.ink; g.font = font(opts.size || 27, 500);
+  return wrapText(g, text, x + 40, y + 62, w - 80, 38);
+}
+
+/** A row of choices; the selected one is filled red. */
+export function choices(g, options, selected, x, y, w, h = 58, gap = 16) {
   const bw = (w - gap * (options.length - 1)) / options.length;
   options.forEach((opt, i) => {
-    const bx = x + i * (bw + gap);
-    g.fillStyle = i === selected ? UI.accent : "rgba(255,255,255,0.08)";
-    roundRect(g, bx, y, bw, h, 14);
-    g.fill();
-    g.fillStyle = i === selected ? "#1b1606" : UI.ink;
-    g.font = font(22, 700);
-    const lines = countLines(g, opt, bw - 32);
-    wrapText(g, opt, bx + bw / 2, y + h / 2 - (lines - 1) * 13 + 8, bw - 32, 26, "center");
+    const bx = x + i * (bw + gap), on = i === selected;
+    g.fillStyle = on ? UI.red : UI.white;
+    g.fillRect(bx, y, bw, h);
+    g.strokeStyle = on ? UI.red : UI.ink; g.lineWidth = 2; g.strokeRect(bx, y, bw, h);
+    g.fillStyle = on ? UI.white : UI.ink;
+    g.font = font(opts(opt, bw, g), 700);
+    const lines = countLines(g, opt, bw - 28);
+    wrapText(g, opt, bx + bw / 2, y + h / 2 + 8 - (lines - 1) * 12, bw - 28, 24, "center");
   });
 }
+function opts(text, bw, g) { return text.length > 34 && bw < 400 ? 18 : 20; }
 
-/** Little prompt in the corner telling the player which control to use. */
+/** Small prompt chip, bottom right. */
 export function hint(g, text) {
-  g.font = font(20, 600);
-  const w = g.measureText(text).width + 40;
-  g.fillStyle = "rgba(0,0,0,0.45)";
-  roundRect(g, W - w - 24, H - 60, w, 40, 20);
-  g.fill();
-  g.fillStyle = UI.ink;
-  g.textAlign = "left";
-  g.fillText(text, W - w - 4, H - 33);
+  g.font = font(18, 700);
+  const w = g.measureText(text).width + 36;
+  g.fillStyle = "rgba(27,27,29,0.78)"; g.fillRect(W - w - 24, H - 58, w, 36);
+  g.fillStyle = UI.white; g.textAlign = "left"; g.fillText(text, W - w - 6, H - 34);
+}
+
+/** A floating label above something in the 3D world (screen position from the stage). */
+export function tag(g, x, y, text, red = false) {
+  g.font = font(18, 900);
+  const w = g.measureText(text).width + 26;
+  g.fillStyle = red ? UI.red : UI.ink; g.fillRect(x - w / 2, y - 34, w, 32);
+  g.beginPath(); g.moveTo(x - 7, y - 2); g.lineTo(x + 7, y - 2); g.lineTo(x, y + 7); g.fill();
+  g.fillStyle = UI.white; g.textAlign = "center"; g.fillText(text, x, y - 12);
 }
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const easeOut = t => 1 - Math.pow(1 - t, 3);
-export const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+export const dist2 = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);

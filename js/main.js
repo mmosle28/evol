@@ -1,51 +1,52 @@
-// Entry point: sets up the canvas, the controller, every scene, and runs the game loop.
+// Entry point: sets up the 3D stage, the overlay, the controller, every scene, and runs the loop.
 
 import { Input, connectSerial } from "./core/input.js";
-import { register, go, updateScene, drawScene, newRun, game } from "./core/game.js";
+import { register, go, updateScene, drawScene, newRun, game, sceneName } from "./core/game.js";
+import { stage } from "./core/stage.js";
 import { W, H } from "./core/draw.js";
+import { startAudio } from "./core/audio.js";
 import { titleScene } from "./scenes/title.js";
 import { pondScene } from "./scenes/pond.js";
 import { evolvingScene } from "./scenes/evolving.js";
-import { worldScene } from "./scenes/world.js";
-import { jobScene } from "./scenes/job.js";
-import { talkScene } from "./scenes/talk.js";
-import { oracleScene } from "./scenes/oracle.js";
+import { summerScene } from "./scenes/summer.js";
+import { diaryScene } from "./scenes/diary.js";
+import { readingScene } from "./scenes/reading.js";
 
-const canvas = document.getElementById("game");
-const g = canvas.getContext("2d");
+stage.init(document.getElementById("gl"));
+const ui = document.getElementById("ui");
+const g = ui.getContext("2d");
 
-// Controller bar
+// Joystick button (only shown on the title screen)
 const btn = document.getElementById("connectBtn");
-const status = document.getElementById("ctrlStatus");
 btn.addEventListener("click", async () => {
   btn.disabled = true;
-  const ok = await connectSerial(msg => { status.textContent = msg; });
+  const ok = await connectSerial(msg => { btn.textContent = msg.length > 40 ? "Use the bridge (see README)" : msg; });
   btn.disabled = ok;
   btn.blur();
 });
 
-// Scenes (the state machine)
 register("title", titleScene);
 register("pond", pondScene);
 register("evolving", evolvingScene);
-register("world", worldScene);
-register("job", jobScene);
-register("talk", talkScene);
-register("oracle", oracleScene);
+register("summer", summerScene);
+register("diary", diaryScene);
+register("reading", readingScene);
 
 newRun();
 go("title");
 
-// ?debug exposes the state machine in the console, for testing scenes directly.
+// ?debug exposes the state machine for testing scenes directly.
 if (new URLSearchParams(location.search).has("debug")) window.evol = { go, game };
 
-// Game loop: read input, update the current scene, draw it.
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); // cap so a slow frame doesn't teleport things
+  const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   Input.update();
+  if (Input.pressed()) startAudio();
+  btn.classList.toggle("hidden", sceneName() !== "title");
   updateScene(dt);
+  stage.render();
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.clearRect(0, 0, W, H);
   drawScene(g);

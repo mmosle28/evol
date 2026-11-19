@@ -1,306 +1,474 @@
-// The pond: 75 seconds as a fish. Nothing here is scripted. A seed lays out the pond, and the game
-// quietly records what the player does (what they eat, what hurts them, where they go, what they pick up).
-// Those traits are all the AI gets when it decides what the fish evolves into.
+// The pond: one short life as a fish. Time only moves when you move (Superhot): stop, and the pond
+// almost freezes, so you can plan. A seed lays out the pond and picks which events happen this life.
+// The game quietly records what you do; those traits are all the AI gets when deciding what you become.
 
 import { Input } from "../core/input.js";
 import { go, game } from "../core/game.js";
 import { makeRng } from "../core/rng.js";
-import { W, H, UI, font, wrapText, panel, hint, clamp, dist } from "../core/draw.js";
+import { stage, makeCamera } from "../core/stage.js";
+import { W, H, font, wrapText, box, hint, clamp, dist2 } from "../core/draw.js";
+import { UI, FONT, PAL } from "../core/palette.js";
+import { makeSky } from "../gfx/sky.js";
+import * as M from "../gfx/models.js";
+import { blip, ambience } from "../core/audio.js";
 
-// Add ?quick to the URL for a 25 second pond (handy for testing and short demos).
-const LIFE_SECONDS = new URLSearchParams(location.search).has("quick") ? 25 : 75;
-const SURFACE_Y = 230, BOTTOM_Y = 500;
-const GRID_X = 8, GRID_Y = 5; // for measuring how much of the pond was explored
+const THREE = window.THREE;
+const QUICK = new URLSearchParams(location.search).has("quick");
+const LIFE = QUICK ? 35 : 75;          // seconds of pond time
+const PX = 60, PZ = 40;                // pond half-size
+const DEEP_R = 26;                     // the dark middle of the pond
+const EVENTS = ["frog", "turtle", "eggs", "net", "hook", "trapped", "rain"];
 
-let rng, t, phase, fish, plants, bugs, school, pike, heron, items, reeds, rocks, pads, log, traits, visited, biteCooldown, endTimer;
+let rng, view, sky, root, t, real, phase, endT, log, pops, tr, visited;
+let fish, pike, heron, school, bugs, weeds, items, reedSpots, ev;
 
-function freshTraits() {
+function freshTraits(present) {
   return {
-    plants: 0, bugs: 0, minnows: 0, bites: 0,
-    tailLost: false, scars: 0, caughtTwice: false,
-    items: [], explored: 0,
-    surfaceTime: 0, bottomTime: 0, hideTime: 0, schoolTime: 0, idleTime: 0, dangerTime: 0,
-    escapes: 0, events: []
+    present,
+    plants: 0, bugs: 0, minnows: 0, crayfish: 0, eggsEaten: 0, bites: 0,
+    tailLost: false, scars: 0, pikeBitten: 0, pikeEscapes: 0,
+    frogBitten: 0, turtleTime: 0, turtleBitten: 0, eggsGuarded: false,
+    netCaught: 0, hooked: 0, escapedHook: 0, caughtByAngler: 0,
+    freedFish: false, ignoredTrapped: false, rainBugs: 0,
+    items: [], explored: 0, shallowTime: 0, deepTime: 0, hideTime: 0, schoolTime: 0, stillTime: 0, dangerTime: 0,
+    events: []
   };
 }
 
-function say(text) {
-  log.unshift({ text, age: 0 });
+function say(text, red = false) {
+  log.unshift({ text, age: 0, red });
   log.length = Math.min(log.length, 4);
-  traits.events.push(`${Math.round(t)}s: ${text}`);
+  tr.events.push(`${Math.round(t)}s: ${text}`);
+}
+function pop(text, pos) { pops.push({ text, pos: pos.clone(), age: 0 }); }
+
+const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const place = (obj, x, y, z) => { obj.position.set(x, y, z); root.add(obj); return obj; };
+/** Keep a point inside the pond's oval, `margin` units from the rim. */
+function inPond(o, margin = 3) {
+  const ax = PX - margin, az = PZ - margin, k = (o.x * o.x) / (ax * ax) + (o.z * o.z) / (az * az);
+  if (k > 1) { const s = 1 / Math.sqrt(k); o.x *= s; o.z *= s; }
+  return o;
+}
+const randPos = (margin = 6) => { for (let i = 0; i < 50; i++) { const p = { x: rng.range(-PX, PX), z: rng.range(-PZ, PZ) }; const ax = PX - margin, az = PZ - margin; if ((p.x * p.x) / (ax * ax) + (p.z * p.z) / (az * az) < 1) return p; } return { x: 0, z: 0 }; };
+const inDeep = p => Math.hypot(p.x, p.z * 1.4) < DEEP_R;
+
+// ---------- Build ----------
+function build() {
+  rng = makeRng(game.seed);
+  const scene = new THREE.Scene();
+  sky = makeSky(scene, rng, { clouds: 12, cloudHeight: 70 });
+  sky.setTime(0.45, { x: 0, z: 0 });
+  root = new THREE.Group(); scene.add(root);
+
+  // Pond basin: pale floor, a darker deep middle, stone rim, and a glassy surface
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(PX * 2 + 20, PZ * 2 + 20), new THREE.MeshStandardMaterial({ color: 0xc9dde0, roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; root.add(floor);
+  const deep = new THREE.Mesh(new THREE.CircleGeometry(DEEP_R, 32), new THREE.MeshStandardMaterial({ color: 0x9cbcc6, roughness: 1 }));
+  deep.rotation.x = -Math.PI / 2; deep.scale.y = 1 / 1.4; deep.position.y = 0.02; deep.receiveShadow = true; root.add(deep);
+  const surface = new THREE.Mesh(new THREE.PlaneGeometry(PX * 2 + 4, PZ * 2 + 4), new THREE.MeshStandardMaterial({ color: 0xbfe0ec, transparent: true, opacity: 0.12, roughness: 0.1, metalness: 0.2, depthWrite: false }));
+  surface.rotation.x = -Math.PI / 2; surface.position.y = 6; root.add(surface);
+  for (let i = 0; i < 70; i++) {
+    const a = i / 70 * Math.PI * 2;
+    const r = M.rock(2 + rng() * 2.5);
+    place(r, Math.cos(a) * (PX + 3), 3, Math.sin(a) * (PZ + 3));
+  }
+  for (let i = 0; i < 6; i++) { const p = randPos(); place(M.lilypad(1.4 + rng() * 1.2), p.x, 6.05, p.z); }
+  for (let i = 0; i < 10; i++) { const p = randPos(); place(M.rock(0.8 + rng() * 1.4), p.x, 0.3, p.z); }
+  // The world around the pond (seen at the edges)
+  const landShape = new THREE.Shape(); landShape.moveTo(-320, -320); landShape.lineTo(320, -320); landShape.lineTo(320, 320); landShape.lineTo(-320, 320); landShape.lineTo(-320, -320);
+  const holePath = new THREE.Path(); holePath.absellipse(0, 0, PX + 3, PZ + 3, 0, Math.PI * 2, true); landShape.holes.push(holePath);
+  const land = new THREE.Mesh(new THREE.ShapeGeometry(landShape, 48), new THREE.MeshStandardMaterial({ color: PAL.white, roughness: 1 }));
+  land.rotation.x = -Math.PI / 2; land.position.y = 6.2; land.receiveShadow = true; root.add(land);
+  for (let i = 0; i < 10; i++) { const tt = M.tree(rng); tt.scale.setScalar(2.4); const a = rng() * Math.PI * 2; place(tt, Math.cos(a) * 95, 6, Math.sin(a) * 80); }
+
+  // Reeds: hiding places
+  reedSpots = [];
+  for (let i = 0; i < rng.int(2, 3); i++) { const p = randPos(12); const r = M.reeds(); r.scale.setScalar(1.5); place(r, p.x, 0, p.z); reedSpots.push({ x: p.x, z: p.z, r: 7 }); }
+
+  // Pondweed to eat
+  weeds = [];
+  for (let i = 0; i < 12; i++) { const p = randPos(); const w = M.weed(); place(w, p.x, 0, p.z); weeds.push({ obj: w, x: p.x, z: p.z, bites: 2 }); }
+
+  // Water bugs near the surface
+  bugs = [];
+  for (let i = 0; i < 8; i++) addBug(randPos(), false);
+
+  // A school of minnows
+  school = { x: rng.range(-30, 30), z: rng.range(-20, 20), vx: 7, fish: [] };
+  for (let i = 0; i < 7; i++) { const m = M.fish({ scale: 0.45, color: PAL.redLight }); root.add(m); school.fish.push({ obj: m, ox: rng.range(-5, 5), oz: rng.range(-3, 3), alive: true }); }
+
+  // The pike
+  pike = { obj: M.fish({ scale: 2.8, color: PAL.redDark }), x: rng.pick([-45, 45]), z: rng.range(-20, 20), vx: 0, vz: 0, mode: "patrol", target: randPos(), cool: 0, flee: 0 };
+  root.add(pike.obj);
+
+  // The heron's shadow
+  heron = { next: rng.range(12, 18), warn: 0, x: 0, z: 0, r: 7, obj: new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 })) };
+  heron.obj.rotation.x = -Math.PI / 2; heron.obj.position.y = 0.1; root.add(heron.obj);
+
+  // Things to pick up
+  items = [];
+  const kinds = ["stick", "shell", "glowing stone", "bottle cap"];
+  const n = rng.int(2, 3);
+  for (let i = 0; i < n; i++) { const kind = kinds[(game.seed + i) % kinds.length]; const p = randPos(); const o = M.item(kind); place(o, p.x, kind === "stick" ? 5.6 : 0.6, p.z); items.push({ kind, obj: o, x: p.x, z: p.z, taken: false }); }
+
+  // This life's random events (the seed decides which happen)
+  const pool = [...EVENTS].sort(() => rng() - 0.5);
+  const present = pool.slice(0, 4);
+  ev = { present };
+  if (present.includes("frog")) { const p = randPos(10); ev.frog = { obj: M.frog(), x: p.x, z: p.z, hop: 0, snap: rng.range(4, 8) }; place(ev.frog.obj, p.x, 5.7, p.z); }
+  if (present.includes("turtle")) { const p = randPos(10); ev.turtle = { obj: M.turtle(), x: p.x, z: p.z, ang: 0, hide: 0 }; place(ev.turtle.obj, p.x, 1.2, p.z); }
+  if (present.includes("eggs")) { const p = randPos(12); ev.eggs = { obj: M.eggs(), x: p.x, z: p.z, left: 9, guardT: 0 }; place(ev.eggs.obj, p.x, 0.4, p.z); ev.cray = { obj: M.crayfish(), x: p.x + 25, z: p.z, alive: true, mode: "wander", t: rng.range(15, 25) }; inPond(ev.cray, 6); place(ev.cray.obj, ev.cray.x, 0.6, ev.cray.z); }
+  if (present.includes("net")) ev.net = { obj: M.net(), next: rng.range(18, 28), phase: "idle", t: 0, x: 0, z: 0 };
+  if (present.includes("net")) { ev.net.obj.visible = false; root.add(ev.net.obj); }
+  if (present.includes("hook")) { const p = randPos(10); ev.hook = { obj: M.hook(), x: p.x, z: p.z, hooked: false, pull: 0, mash: 0, done: false }; place(ev.hook.obj, p.x, 3.2, p.z); }
+  if (present.includes("trapped")) { const p = randPos(12); ev.trapped = { obj: M.fish({ scale: 0.9, color: PAL.redLight }), x: p.x, z: p.z, freed: false, seen: 0, line: new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 3, 10), M.mat(0xffffff)) }; place(ev.trapped.obj, p.x, 1.2, p.z); ev.trapped.line.rotation.x = Math.PI / 2; place(ev.trapped.line, p.x, 1.2, p.z); }
+  if (present.includes("rain")) ev.rain = { at: rng.range(LIFE * 0.3, LIFE * 0.6), left: 12, on: false, drops: null };
+
+  // The player
+  fish = { obj: M.fish({ scale: 1.25, color: PAL.red }), x: 0, z: 10, vx: 0, vz: 0, heading: -Math.PI / 2, lunge: 0, hurt: 0, carrying: null, netted: 0 };
+  root.add(fish.obj);
+
+  const camera = makeCamera(50);
+  view = { scene, camera };
 }
 
+function addBug(p, fromRain) {
+  const b = { obj: M.bug(), x: p.x, z: p.z, vx: 0, vz: 0, turn: 0, alive: true, rain: fromRain };
+  place(b.obj, p.x, 6.15, p.z);
+  bugs.push(b);
+}
+
+// ---------- Scene ----------
 export const pondScene = {
   enter() {
-    rng = makeRng(game.seed);
-    t = 0; phase = "intro"; endTimer = 0; biteCooldown = 0;
-    log = []; traits = freshTraits();
-    visited = new Set();
-    fish = { x: W / 2, y: 380, vx: 0, vy: 0, angle: 0, carrying: null, hurtFlash: 0 };
-
-    // Lay out the pond from the seed
-    reeds = Array.from({ length: rng.int(2, 3) }, () => ({ x: rng.range(120, W - 120), y: rng.range(300, 560), r: rng.range(70, 100) }));
-    rocks = Array.from({ length: 7 }, () => ({ x: rng.range(40, W - 40), y: rng.range(600, 700), r: rng.range(20, 50) }));
-    pads = Array.from({ length: 6 }, () => ({ x: rng.range(60, W - 60), y: rng.range(40, 170), r: rng.range(26, 44) }));
-    plants = Array.from({ length: 9 }, () => ({ x: rng.range(60, W - 60), y: rng.range(430, 640), bites: 2, sway: rng.range(0, 6) }));
-    bugs = Array.from({ length: 7 }, () => ({ x: rng.range(60, W - 60), y: rng.range(60, SURFACE_Y), vx: 0, vy: 0, alive: true, turn: 0 }));
-    const sc = { x: rng.range(200, W - 200), y: rng.range(260, 460) };
-    school = { x: sc.x, y: sc.y, vx: 60, vy: 0, fish: Array.from({ length: 7 }, (_, i) => ({ ox: rng.range(-50, 50), oy: rng.range(-30, 30), alive: true })) };
-    pike = { x: rng.pick([80, W - 80]), y: rng.range(300, 520), vx: 0, vy: 0, mode: "patrol", target: { x: W / 2, y: 400 }, cooldown: 0 };
-    heron = { next: rng.range(12, 18), warn: 0, x: 0, y: 0, r: 70 };
-    const itemKinds = [
-      { kind: "stick", label: "a floating stick", color: "#8a6a3d" },
-      { kind: "shell", label: "an empty snail shell", color: "#d8c7a8" },
-      { kind: "glowing stone", label: "a strange glowing stone", color: "#9ef0e0" }
-    ];
-    items = [];
-    const n = rng.int(2, 3);
-    for (let i = 0; i < n; i++) {
-      const k = itemKinds[(game.seed + i) % itemKinds.length];
-      items.push({ ...k, x: rng.range(100, W - 100), y: k.kind === "stick" ? rng.range(40, 120) : rng.range(300, 660), taken: false });
-    }
+    build();
+    stage.view = view;
+    t = 0; real = 0; phase = "intro"; endT = 0; log = []; pops = []; visited = new Set();
+    tr = freshTraits(ev.present);
+    ambience("pond");
   },
 
-  update(dt) {
-    if (phase === "intro") { if (Input.pressed()) phase = "live"; return; }
-    if (phase === "end") {
-      endTimer += dt;
-      if (endTimer > 1 && Input.pressed()) { game.traits = traits; go("evolving"); }
-      return;
-    }
+  update(rdt) {
+    real += rdt;
+    sky.update(rdt);
+    if (phase === "intro") { follow(rdt, true); if (real > 0.4 && Input.pressed()) phase = "live"; return; }
+    if (phase === "end") { endT += rdt; follow(rdt); if (endT > 1 && Input.pressed()) { game.traits = tr; go("evolving"); } return; }
+
+    // ----- Superhot time: the pond moves at the speed you move -----
+    const push = Math.hypot(Input.x, Input.y);
+    const ts = fish.lunge > 0 || (ev.hook && ev.hook.hooked) ? 1 : 0.06 + 0.94 * clamp(push * 1.15, 0, 1);
+    const dt = rdt * ts;
+    if (push < 0.15) tr.stillTime += rdt;
     t += dt;
-    for (const l of log) l.age += dt;
+    for (const l of log) l.age += rdt;
+    for (const p of pops) p.age += rdt;
+    pops = pops.filter(p => p.age < 1.2);
 
-    // ----- Fish movement (losing your tail makes you slow) -----
-    const top = traits.tailLost ? 150 : 230;
-    fish.vx += (Input.x * top - fish.vx) * Math.min(1, dt * 6);
-    fish.vy += (Input.y * top - fish.vy) * Math.min(1, dt * 6);
-    fish.x = clamp(fish.x + fish.vx * dt, 20, W - 20);
-    fish.y = clamp(fish.y + fish.vy * dt, 20, H - 20);
-    const speed = Math.hypot(fish.vx, fish.vy);
-    if (speed > 20) fish.angle = Math.atan2(fish.vy, fish.vx);
-    fish.hurtFlash = Math.max(0, fish.hurtFlash - dt);
-
-    // ----- Where the fish spends its time -----
-    const hiding = reeds.some(r => dist(r, fish) < r.r);
-    if (hiding) traits.hideTime += dt;
-    if (fish.y < SURFACE_Y) traits.surfaceTime += dt;
-    if (fish.y > BOTTOM_Y) traits.bottomTime += dt;
-    if (speed < 25) traits.idleTime += dt;
-    if (dist(school, fish) < 130) traits.schoolTime += dt;
-    visited.add(Math.floor(fish.x / (W / GRID_X)) + "," + Math.floor(fish.y / (H / GRID_Y)));
-
-    // ----- Biting: eat or pick up whatever is closest -----
-    biteCooldown -= dt;
-    if (Input.pressed() && biteCooldown <= 0) { biteCooldown = 0.3; bite(); }
-
-    // ----- Bugs skitter near the surface and flee when you get close -----
-    for (const b of bugs) {
-      if (!b.alive) continue;
-      b.turn -= dt;
-      if (b.turn <= 0) { b.turn = rng.range(0.4, 1.2); const a = rng.range(0, Math.PI * 2); b.vx = Math.cos(a) * 70; b.vy = Math.sin(a) * 40; }
-      const d = dist(b, fish);
-      if (d < 110) { b.vx = (b.x - fish.x) / d * 165; b.vy = (b.y - fish.y) / d * 165; }
-      b.x = clamp(b.x + b.vx * dt, 20, W - 20);
-      b.y = clamp(b.y + b.vy * dt, 30, SURFACE_Y + 40);
-    }
-
-    // ----- A school of minnows drifts around -----
-    school.x += school.vx * dt; school.y += Math.sin(t * 0.7) * 20 * dt;
-    if (school.x < 150 || school.x > W - 150) school.vx *= -1;
-
-    // ----- The pike patrols, then chases anything in the open -----
-    pike.cooldown -= dt;
-    const pd = dist(pike, fish);
-    const towardPike = (pike.x - fish.x) * fish.vx + (pike.y - fish.y) * fish.vy > 0;
-    if (pd < 260 && !hiding) { traits.dangerTime += dt; if (towardPike && speed > 60) traits.dangerTime += dt; }
-    if (pike.mode === "patrol") {
-      if (dist(pike, pike.target) < 30) pike.target = { x: rng.range(80, W - 80), y: rng.range(260, 600) };
-      steer(pike, pike.target, 80, dt);
-      if (pd < 230 && !hiding && pike.cooldown <= 0) { pike.mode = "chase"; say("A pike spotted you"); }
-    } else {
-      steer(pike, fish, 185, dt);
-      if (hiding || pd > 380) { pike.mode = "patrol"; traits.escapes++; say(hiding ? "You hid in the reeds" : "You outswam the pike"); }
-      if (pd < 46) {
-        pike.mode = "patrol"; pike.cooldown = 4;
-        fish.hurtFlash = 0.6;
-        traits.scars++;
-        fish.vx += (fish.x - pike.x) * 6; fish.vy += (fish.y - pike.y) * 6;
-        if (traits.scars >= 2) { traits.caughtTwice = true; say("The pike got you again. You barely escaped"); }
-        else say("The pike bit you. You'll have a scar");
-      }
-    }
-
-    // ----- Every so often a heron's shadow appears near you, then it strikes -----
-    heron.next -= dt;
-    if (heron.next <= 0 && heron.warn <= 0) {
-      heron.warn = 1.6;
-      heron.x = clamp(fish.x + rng.range(-80, 80), 80, W - 80);
-      heron.y = clamp(fish.y + rng.range(-60, 60), 80, H - 80);
-    }
-    if (heron.warn > 0) {
-      heron.warn -= dt;
-      if (heron.warn <= 0) {
-        heron.next = rng.range(14, 20);
-        if (dist(heron, fish) < heron.r && !hiding) {
-          fish.hurtFlash = 0.8;
-          if (!traits.tailLost) { traits.tailLost = true; say("A heron struck! You lost your tail"); }
-          else { traits.scars++; say("The heron struck again"); }
-        } else say("You dodged a heron");
-      }
-    }
-
-    if (t >= LIFE_SECONDS) finish();
+    moveFish(rdt);
+    trackPlace(rdt, dt);
+    if (Input.pressed()) bite();
+    updateBugs(dt); updateSchool(dt); updatePike(dt); updateHeron(dt); updateEvents(dt, rdt);
+    for (const w of weeds) w.obj.rotation.z = Math.sin(t * 1.5 + w.x) * 0.08;
+    follow(rdt);
+    if (t >= LIFE || real > LIFE * 2.4) finish();
   },
 
   draw(g) {
-    drawPond(g);
-    // HUD: time left
-    const left = Math.max(0, LIFE_SECONDS - t);
-    g.fillStyle = "rgba(0,0,0,0.35)";
-    g.fillRect(0, 0, W, 8);
-    g.fillStyle = left < 15 ? UI.bad : UI.accent;
-    g.fillRect(0, 0, W * (left / LIFE_SECONDS), 8);
-    // Event feed, so players see cause and effect
+    // Floating pops (+bug, ouch)
+    for (const p of pops) {
+      const s = stage.toScreen(p.pos.clone().add(v3(0, 4 + p.age * 3, 0)));
+      if (!s) continue;
+      g.globalAlpha = 1 - p.age / 1.2; g.fillStyle = UI.red; g.font = font(24, 900); g.textAlign = "center"; g.fillText(p.text, s.x, s.y);
+    }
+    g.globalAlpha = 1;
+    // Life bar
+    g.fillStyle = "rgba(255,255,255,0.6)"; g.fillRect(0, 0, W, 10);
+    g.fillStyle = UI.red; g.fillRect(0, 0, W * Math.max(0, 1 - t / LIFE), 10);
+    // Event feed
     g.textAlign = "left";
     log.forEach((l, i) => {
-      g.globalAlpha = clamp(1 - (l.age - 3) / 1.5, 0, 1) * (1 - i * 0.18);
-      g.font = font(24, 700);
-      g.fillStyle = UI.ink;
-      g.fillText(l.text, 28, 50 + i * 34);
+      g.globalAlpha = clamp(1 - (l.age - 3.5) / 1.5, 0, 1) * (1 - i * 0.15);
+      g.font = font(24, 900);
+      const w = g.measureText(l.text).width + 28;
+      g.fillStyle = l.red ? UI.red : UI.ink; g.fillRect(24, 30 + i * 46, w, 38);
+      g.fillStyle = UI.white; g.fillText(l.text, 38, 57 + i * 46);
     });
     g.globalAlpha = 1;
-    if (phase === "live") hint(g, "Move: joystick   Bite / pick up: button");
-
+    if (phase === "live") {
+      const still = Math.hypot(Input.x, Input.y) < 0.15 && fish.lunge <= 0;
+      if (still) { g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(0, 0, W, H); g.fillStyle = UI.ink; g.font = font(20, 900); g.textAlign = "center"; g.fillText("TIME IS STILL", W / 2, 60); }
+      if (ev.hook && ev.hook.hooked) { g.fillStyle = UI.red; g.font = font(44, 900, FONT.title); g.textAlign = "center"; g.fillText("Hooked! Mash the button!", W / 2, 160); }
+      hint(g, "Move: joystick   Bite / grab: button");
+    }
     if (phase === "intro") {
-      panel(g, W / 2 - 380, H / 2 - 170, 760, 340);
-      g.fillStyle = UI.ink; g.textAlign = "center"; g.font = font(48, 800, true);
-      g.fillText("You are a small fish", W / 2, H / 2 - 90);
-      g.font = font(26, 500); g.fillStyle = UI.muted;
-      wrapText(g, `You have ${LIFE_SECONDS} seconds. Swim, eat, explore, pick things up, avoid what hunts you. There's no right way to live. Whatever you do shapes what you become.`, W / 2, H / 2 - 30, 640, 36, "center");
-      g.fillStyle = UI.accent; g.font = font(26, 700);
-      g.fillText("Press the button to start", W / 2, H / 2 + 125);
+      box(g, W / 2 - 400, H / 2 - 190, 800, 380);
+      g.fillStyle = UI.red; g.font = font(64, 400, FONT.title); g.textAlign = "center";
+      g.fillText("You are a small fish", W / 2, H / 2 - 100);
+      g.fillStyle = UI.ink; g.font = font(24, 500);
+      wrapText(g, "Time only moves when you move. Stop, and the pond holds its breath. Eat, explore, pick things up, fight back or hide. Bite a pike from behind and it might flee. There's no right way to live: whatever you do shapes what you become.", W / 2, H / 2 - 40, 680, 34, "center");
+      g.fillStyle = UI.red; g.font = font(22, 900);
+      g.fillText("PRESS THE BUTTON TO START", W / 2, H / 2 + 150);
     }
     if (phase === "end") {
-      g.fillStyle = "rgba(4,10,12,0.55)"; g.fillRect(0, 0, W, H);
-      g.fillStyle = UI.ink; g.textAlign = "center"; g.font = font(56, 800, true);
-      g.fillText("Something is changing…", W / 2, H / 2 - 20);
-      g.font = font(26, 600); g.fillStyle = UI.muted;
-      g.fillText("Your time as a fish is over. Press the button to evolve.", W / 2, H / 2 + 30);
+      g.fillStyle = "rgba(247,246,242,0.72)"; g.fillRect(0, 0, W, H);
+      g.fillStyle = UI.red; g.font = font(80, 400, FONT.title); g.textAlign = "center";
+      g.fillText("Something is changing", W / 2, H / 2 - 10);
+      g.fillStyle = UI.ink; g.font = font(24, 700);
+      g.fillText("Your time as a fish is over. Press the button to evolve.", W / 2, H / 2 + 44);
     }
   }
 };
 
-function steer(o, target, maxSpeed, dt) {
-  const dx = target.x - o.x, dy = target.y - o.y, d = Math.hypot(dx, dy) || 1;
-  o.vx += (dx / d * maxSpeed - o.vx) * Math.min(1, dt * 2.5);
-  o.vy += (dy / d * maxSpeed - o.vy) * Math.min(1, dt * 2.5);
-  o.x = clamp(o.x + o.vx * dt, 30, W - 30);
-  o.y = clamp(o.y + o.vy * dt, 200, H - 40);
+// ---------- Player ----------
+function moveFish(rdt) {
+  if (fish.netted > 0) { fish.netted -= rdt; return; }
+  const top = (tr.tailLost ? 11 : 17) * (fish.lunge > 0 ? 2.3 : 1);
+  fish.lunge = Math.max(0, fish.lunge - rdt);
+  if (ev.hook && ev.hook.hooked) {
+    // Being reeled toward the shore
+    fish.vx = 0; fish.vz = -9;
+  } else {
+    const k = Math.min(1, rdt * 7);
+    if (fish.lunge > 0) { fish.vx += (Math.cos(fish.heading) * top - fish.vx) * k; fish.vz += (Math.sin(fish.heading) * top - fish.vz) * k; }
+    else { fish.vx += (Input.x * top - fish.vx) * k; fish.vz += (Input.y * top - fish.vz) * k; }
+  }
+  fish.x += fish.vx * rdt; fish.z += fish.vz * rdt;
+  inPond(fish, 3);
+  if (Math.hypot(fish.vx, fish.vz) > 1.5) fish.heading = Math.atan2(fish.vz, fish.vx);
+  fish.hurt = Math.max(0, fish.hurt - rdt);
+  fish.obj.position.set(fish.x, 2.4 + Math.sin(real * 3) * 0.15, fish.z);
+  fish.obj.rotation.y = -fish.heading;
+  fish.obj.visible = !(fish.hurt > 0 && Math.floor(fish.hurt * 14) % 2);
+  if (fish.carrying) { fish.carrying.obj.position.set(fish.x + Math.cos(fish.heading) * 2.4, 2.4, fish.z + Math.sin(fish.heading) * 2.4); }
 }
 
+function hidden() {
+  if (reedSpots.some(r => dist2(r, fish) < r.r)) return true;
+  if (ev.turtle && dist2(ev.turtle, fish) < 3.2) return true;
+  return false;
+}
+
+function trackPlace(rdt, dt) {
+  if (hidden()) tr.hideTime += dt;
+  if (inDeep(fish)) tr.deepTime += dt; else tr.shallowTime += dt;
+  if (dist2(school, fish) < 9) tr.schoolTime += dt;
+  if (ev.turtle && dist2(ev.turtle, fish) < 3.2) tr.turtleTime += dt;
+  visited.add(Math.floor((fish.x + PX) / 15) + "," + Math.floor((fish.z + PZ) / 16));
+}
+
+function hurt(text) {
+  if (fish.hurt > 0) return; // a moment of safety after each hit
+  fish.hurt = 0.9; tr.scars++; blip("hurt"); Input.signal("b"); say(text, true); pop("ouch", fish.obj.position);
+}
+
+/** Pressing the button lunges forward and bites whatever is in front of you. */
 function bite() {
-  traits.bites++;
-  const reach = 44;
-  // Items first: picking something up is a big deal
-  for (const it of items) {
-    if (!it.taken && dist(it, fish) < reach + 10) {
-      it.taken = true; fish.carrying = it; traits.items.push(it.kind);
-      say(`You picked up ${it.label}`);
-      return;
+  if (ev.hook && ev.hook.hooked) { ev.hook.mash++; blip("bite"); return; }
+  tr.bites++; fish.lunge = 0.18; blip("bite");
+  const mouth = { x: fish.x + Math.cos(fish.heading) * 2.6, z: fish.z + Math.sin(fish.heading) * 2.6 };
+  const near = (o, r = 3.2) => dist2(o, mouth) < r;
+
+  for (const it of items) if (!it.taken && near(it, 3.6)) {
+    if (fish.carrying) { fish.carrying.taken = false; fish.carrying.x = fish.x; fish.carrying.z = fish.z; fish.carrying.obj.position.set(fish.x, 0.6, fish.z); }
+    it.taken = true; fish.carrying = it; tr.items.push(it.kind); blip("get"); say(`You picked up a ${it.kind}`); return;
+  }
+  if (ev.hook && !ev.hook.done && near(ev.hook)) { ev.hook.hooked = true; ev.hook.pull = 0; ev.hook.mash = 0; tr.hooked++; say("You bit the bait. It's a hook!", true); return; }
+  if (ev.trapped && !ev.trapped.freed && near(ev.trapped, 3.6)) { ev.trapped.freed = true; ev.trapped.line.visible = false; tr.freedFish = true; blip("get"); say("You bit the line and freed the trapped fish"); pop("freed", ev.trapped.obj.position); return; }
+  if (dist2(pike, mouth) < 4.5) {
+    const behind = Math.cos(Math.atan2(fish.z - pike.z, fish.x - pike.x) - Math.atan2(pike.vz, pike.vx)) < -0.2;
+    if (behind || pike.mode === "flee") { tr.pikeBitten++; pike.mode = "flee"; pike.flee = 5; blip("get"); say("You bit the pike's tail. It fled!"); pop("!", pike.obj.position); }
+    else hurt("You bit the pike head-on. It bit back");
+    return;
+  }
+  if (ev.frog && near(ev.frog, 3.8)) { tr.frogBitten++; ev.frog.hop = 1; const p = randPos(10); ev.frog.tx = p.x; ev.frog.tz = p.z; say("You nipped the frog. It leapt away"); return; }
+  if (ev.turtle && near(ev.turtle, 4)) { tr.turtleBitten++; ev.turtle.hide = 3; say("You bit the turtle. It pulled into its shell"); return; }
+  if (ev.cray && ev.cray.alive && near(ev.cray, 3.4)) {
+    const behind = Math.cos(Math.atan2(fish.z - ev.cray.z, fish.x - ev.cray.x) - ev.cray.ang) < 0;
+    if (behind) { ev.cray.alive = false; ev.cray.obj.visible = false; tr.crayfish++; blip("get"); say(ev.eggs && dist2(ev.eggs, fish) < 10 ? "You ate the crayfish and saved the eggs" : "You ate a crayfish"); if (ev.eggs && dist2(ev.eggs, fish) < 10) tr.eggsGuarded = true; }
+    else hurt("The crayfish pinched you");
+    return;
+  }
+  for (const b of bugs) if (b.alive && near(b)) { b.alive = false; b.obj.visible = false; tr.bugs++; if (b.rain) tr.rainBugs++; blip("get"); pop("+bug", b.obj.position); return; }
+  for (const m of school.fish) if (m.alive && near(m.obj.position, 2.8)) { m.alive = false; m.obj.visible = false; tr.minnows++; blip("get"); say("You ate a minnow"); return; }
+  if (ev.eggs && ev.eggs.left > 0 && near(ev.eggs, 3.2)) { ev.eggs.left--; ev.eggs.obj.children[ev.eggs.left].visible = false; tr.eggsEaten++; blip("get"); if (tr.eggsEaten === 1) say("You ate some fish eggs"); return; }
+  for (const w of weeds) if (w.bites > 0 && near(w, 3.4)) { w.bites--; if (!w.bites) w.obj.scale.setScalar(0.5); tr.plants++; blip("get"); pop("+weed", w.obj.position); return; }
+}
+
+// ---------- Pond life ----------
+function updateBugs(dt) {
+  for (const b of bugs) {
+    if (!b.alive) continue;
+    b.turn -= dt;
+    if (b.turn <= 0) { b.turn = rng.range(0.4, 1.2); const a = rng() * Math.PI * 2; b.vx = Math.cos(a) * 5; b.vz = Math.sin(a) * 5; }
+    const d = dist2(b, fish);
+    if (d < 7) { b.vx = (b.x - fish.x) / d * 11; b.vz = (b.z - fish.z) / d * 11; }
+    b.x += b.vx * dt; b.z += b.vz * dt; inPond(b, 4);
+    b.obj.position.set(b.x, 6.15, b.z);
+    b.obj.userData.wing.rotation.z = Math.sin(t * 40) * 0.4;
+  }
+}
+
+function updateSchool(dt) {
+  school.x += school.vx * dt; school.z += Math.sin(t * 0.6) * 3 * dt;
+  const before = school.x; inPond(school, 14); if (school.x !== before) school.vx *= -1;
+  for (const m of school.fish) {
+    if (!m.alive) continue;
+    const near = dist2({ x: school.x + m.ox, z: school.z + m.oz }, fish) < 5;
+    m.obj.position.set(school.x + m.ox + Math.sin(t * 3 + m.oz) * 0.6 + (near ? (m.ox > 0 ? 2 : -2) : 0), 1.6, school.z + m.oz);
+    m.obj.rotation.y = school.vx > 0 ? 0 : Math.PI;
+  }
+}
+
+function steer(o, tx, tz, speed, dt, turn = 2.5) {
+  const dx = tx - o.x, dz = tz - o.z, d = Math.hypot(dx, dz) || 1;
+  o.vx += (dx / d * speed - o.vx) * Math.min(1, dt * turn);
+  o.vz += (dz / d * speed - o.vz) * Math.min(1, dt * turn);
+  o.x += o.vx * dt; o.z += o.vz * dt;
+  inPond(o, 5);
+}
+
+function updatePike(dt) {
+  pike.cool -= dt;
+  const d = dist2(pike, fish), hid = hidden();
+  if (d < 22 && !hid) tr.dangerTime += dt;
+  if (pike.mode === "flee") {
+    pike.flee -= dt;
+    steer(pike, pike.x + (pike.x - fish.x), pike.z + (pike.z - fish.z), 20, dt);
+    if (pike.flee <= 0) { pike.mode = "patrol"; pike.cool = 6; }
+  } else if (pike.mode === "patrol") {
+    if (dist2(pike, pike.target) < 4) pike.target = randPos(8);
+    steer(pike, pike.target.x, pike.target.z, 6, dt);
+    if (d < 20 && !hid && pike.cool <= 0) { pike.mode = "chase"; say("A pike spotted you", true); }
+  } else {
+    steer(pike, fish.x, fish.z, 14.5, dt, 1.8);
+    if (hid || d > 34) { pike.mode = "patrol"; pike.cool = 3; tr.pikeEscapes++; say(hid ? "You hid. The pike lost you" : "You outswam the pike"); }
+    else if (d < 3.6) { pike.mode = "patrol"; pike.cool = 5; fish.vx += (fish.x - pike.x) * 3; fish.vz += (fish.z - pike.z) * 3; hurt(tr.scars >= 1 ? "The pike got you again" : "The pike bit you. You'll scar"); }
+  }
+  pike.obj.position.set(pike.x, 2.2, pike.z);
+  pike.obj.rotation.y = -Math.atan2(pike.vz, pike.vx);
+}
+
+function updateHeron(dt) {
+  heron.next -= dt;
+  if (heron.next <= 0 && heron.warn <= 0) {
+    heron.warn = 1.8;
+    heron.x = clamp(fish.x + rng.range(-5, 5), -PX + 6, PX - 6); heron.z = clamp(fish.z + rng.range(-4, 4), -PZ + 6, PZ - 6);
+  }
+  if (heron.warn > 0) {
+    heron.warn -= dt;
+    const k = 1 - heron.warn / 1.8;
+    heron.obj.position.set(heron.x, 0.15, heron.z); heron.obj.scale.setScalar(heron.r * (0.5 + k * 0.5));
+    heron.obj.material.opacity = 0.12 + k * 0.4;
+    if (heron.warn <= 0) {
+      heron.obj.material.opacity = 0; heron.next = rng.range(13, 19);
+      if (dist2(heron, fish) < heron.r && !hidden()) {
+        if (!tr.tailLost) { tr.tailLost = true; M.setTailless(fish.obj, true); hurt("A heron struck! You lost your tail"); }
+        else hurt("The heron struck again");
+      } else say("A heron missed you");
     }
   }
-  for (const b of bugs) {
-    if (b.alive && dist(b, fish) < reach) { b.alive = false; traits.bugs++; say("You caught a water bug"); return; }
+}
+
+function updateEvents(dt, rdt) {
+  // Frog: sits on a lily pad, snaps at things that come close
+  const f = ev.frog;
+  if (f) {
+    if (f.hop > 0) { f.hop -= dt * 1.5; f.x += (f.tx - f.x) * Math.min(1, dt * 3); f.z += (f.tz - f.z) * Math.min(1, dt * 3); f.obj.position.y = 5.7 + Math.sin(Math.max(0, f.hop) * Math.PI) * 4; }
+    f.obj.position.x = f.x; f.obj.position.z = f.z;
+    f.snap -= dt;
+    if (f.snap <= 0) { f.snap = rng.range(5, 9); if (dist2(f, fish) < 6) hurt("The frog snapped at you"); }
   }
-  for (const m of school.fish) {
-    if (m.alive && dist({ x: school.x + m.ox, y: school.y + m.oy }, fish) < reach) { m.alive = false; traits.minnows++; say("You ate a minnow"); return; }
+  // Turtle: drifts slowly; hide under it and nothing can reach you
+  const tu = ev.turtle;
+  if (tu) {
+    tu.hide = Math.max(0, tu.hide - dt);
+    if (tu.hide <= 0) { tu.ang += dt * 0.15; tu.x += Math.cos(tu.ang) * 1.6 * dt; tu.z += Math.sin(tu.ang) * 1.6 * dt; inPond(tu, 9); }
+    tu.obj.position.set(tu.x, 1.4, tu.z); tu.obj.rotation.y = -tu.ang;
   }
-  for (const p of plants) {
-    if (p.bites > 0 && dist(p, fish) < reach + 6) { p.bites--; traits.plants++; say("You nibbled some pondweed"); return; }
+  // Eggs and the crayfish that wants them
+  const c = ev.cray;
+  if (c && c.alive) {
+    c.t -= dt;
+    const goal = c.t <= 0 && ev.eggs.left > 0 ? ev.eggs : { x: c.x + Math.cos(t * 0.3) * 4, z: c.z + Math.sin(t * 0.3) * 4 };
+    if (c.t <= 0 && c.mode !== "raid") { c.mode = "raid"; say("A crayfish is heading for the eggs", true); }
+    const dx = goal.x - c.x, dz = goal.z - c.z, d = Math.hypot(dx, dz) || 1;
+    c.ang = Math.atan2(dz, dx);
+    if (d > 1.5) { c.x += dx / d * 4 * dt; c.z += dz / d * 4 * dt; }
+    else if (c.mode === "raid" && ev.eggs.left > 0 && rng() < dt * 0.6) { ev.eggs.left--; ev.eggs.obj.children[ev.eggs.left].visible = false; }
+    c.obj.position.set(c.x, 0.6, c.z); c.obj.rotation.y = -c.ang;
   }
+  if (ev.eggs && dist2(ev.eggs, fish) < 6) ev.eggs.guardT += dt;
+  // The kid's net: a shadow, then a scoop
+  const n = ev.net;
+  if (n) {
+    if (n.phase === "idle") { n.next -= dt; if (n.next <= 0) { n.phase = "warn"; n.t = 2; n.x = fish.x; n.z = fish.z; n.obj.visible = true; say("Something is coming from the shore", true); } }
+    else if (n.phase === "warn") {
+      n.t -= dt; n.obj.position.set(n.x, 12 - (2 - n.t) * 3, n.z);
+      if (n.t <= 0) {
+        n.phase = "idle"; n.next = rng.range(22, 30); n.obj.visible = false;
+        if (dist2(n, fish) < 4 && !hidden()) { tr.netCaught++; fish.netted = 2.2; Input.signal("b"); say("A kid scooped you up, looked at you, and let you go"); fish.x = rng.range(-20, 20); fish.z = rng.range(-10, 10); }
+        else say("A net splashed down and missed");
+      }
+    }
+  }
+  // The hook: once bitten, mash to break free
+  const h = ev.hook;
+  if (h && !h.done) {
+    h.obj.position.y = 3.2 + Math.sin(t * 2) * 0.4;
+    if (h.hooked) {
+      h.pull += rdt;
+      h.obj.position.set(fish.x + Math.cos(fish.heading) * 2, 2.6, fish.z + Math.sin(fish.heading) * 2);
+      if (h.mash >= 9) { h.hooked = false; h.done = true; h.obj.visible = false; tr.escapedHook++; say("You tore free of the hook!"); }
+      else if (h.pull > 3.2) { h.hooked = false; h.done = true; h.obj.visible = false; tr.caughtByAngler++; tr.scars++; fish.hurt = 1; say("Pulled out of the water... then tossed back in", true); fish.x = rng.range(-15, 15); fish.z = rng.range(-8, 8); }
+    }
+  }
+  // The trapped fish: free it and it follows you; ignore it and the game notices
+  const tp = ev.trapped;
+  if (tp) {
+    if (!tp.freed) { tp.obj.rotation.y = Math.sin(t * 6) * 0.4; if (dist2(tp, fish) < 10) tp.seen += dt; }
+    else {
+      const tx = fish.x - Math.cos(fish.heading) * 4, tz = fish.z - Math.sin(fish.heading) * 4;
+      tp.x += (tx - tp.x) * Math.min(1, dt * 2.5); tp.z += (tz - tp.z) * Math.min(1, dt * 2.5);
+      tp.obj.position.set(tp.x, 2, tp.z); tp.obj.rotation.y = -fish.heading;
+    }
+  }
+  // Rain: bugs fall into the pond for a short feast
+  const r = ev.rain;
+  if (r) {
+    if (!r.on && r.left > 0 && t >= r.at) { r.on = true; say("It started to rain. Bugs are falling in"); for (let i = 0; i < 10; i++) addBug(randPos(), true); r.drops = makeRain(); }
+    if (r.on) { r.left -= dt; animateRain(r.drops, rdt); if (r.left <= 0) { r.on = false; r.drops.visible = false; } }
+  }
+}
+
+function makeRain() {
+  const n = 400, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { pos[i * 3] = rng.range(-PX, PX); pos[i * 3 + 1] = rng.range(6, 40); pos[i * 3 + 2] = rng.range(-PZ, PZ); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x8fb6d8, size: 0.35 }));
+  root.add(pts);
+  return pts;
+}
+function animateRain(pts, rdt) {
+  const a = pts.geometry.attributes.position;
+  for (let i = 0; i < a.count; i++) { let y = a.getY(i) - 40 * rdt; if (y < 6) y = 40; a.setY(i, y); }
+  a.needsUpdate = true;
+}
+
+function follow(rdt, instant = false) {
+  const cam = view.camera;
+  const tx = clamp(fish.x, -PX + 20, PX - 20) * 0.85, tz = clamp(fish.z, -PZ + 12, PZ - 12) * 0.85;
+  const want = v3(tx, 46, tz + 34);
+  if (instant) cam.position.copy(want); else cam.position.lerp(want, Math.min(1, rdt * 3));
+  cam.lookAt(cam.position.x, 0, cam.position.z - 30);
+  sky.setTime(0.45, { x: cam.position.x, z: cam.position.z - 30 });
 }
 
 function finish() {
   phase = "end";
-  traits.explored = Math.round((visited.size / (GRID_X * GRID_Y)) * 100) / 100;
-  for (const k of ["surfaceTime", "bottomTime", "hideTime", "schoolTime", "idleTime", "dangerTime"]) traits[k] = Math.round(traits[k]);
-}
-
-// ---------- Drawing ----------
-function drawPond(g) {
-  const grd = g.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, "#2f8a8a"); grd.addColorStop(0.45, "#1d5c66"); grd.addColorStop(1, "#0c2a30");
-  g.fillStyle = grd; g.fillRect(0, 0, W, H);
-  // light ripples
-  g.strokeStyle = "rgba(255,255,255,0.06)"; g.lineWidth = 2;
-  for (let i = 0; i < 9; i++) {
-    g.beginPath();
-    for (let x = 0; x <= W; x += 40) g.lineTo(x, 60 + i * 70 + Math.sin(x / 90 + t * 1.5 + i) * 8);
-    g.stroke();
-  }
-  // rocks
-  g.fillStyle = "#26363a";
-  for (const r of rocks) { g.beginPath(); g.ellipse(r.x, r.y, r.r * 1.3, r.r * 0.8, 0, 0, Math.PI * 2); g.fill(); }
-  // plants
-  for (const p of plants) {
-    g.strokeStyle = p.bites > 0 ? "#5fbf6a" : "#2f5f38"; g.lineWidth = 5;
-    for (let k = -1; k <= 1; k++) {
-      g.beginPath(); g.moveTo(p.x + k * 8, p.y + 20);
-      g.quadraticCurveTo(p.x + k * 14 + Math.sin(t * 2 + p.sway) * 8, p.y - 10, p.x + k * 6 + Math.sin(t * 2 + p.sway) * 12, p.y - 34);
-      g.stroke();
-    }
-  }
-  // reeds (hiding spots)
-  for (const r of reeds) {
-    g.fillStyle = "rgba(40,90,50,0.35)"; g.beginPath(); g.arc(r.x, r.y, r.r, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = "#3f7d47"; g.lineWidth = 4;
-    for (let k = 0; k < 14; k++) {
-      const a = (k / 14) * Math.PI * 2, rr = r.r * (0.3 + (k % 3) * 0.22);
-      const bx = r.x + Math.cos(a) * rr, by = r.y + Math.sin(a) * rr * 0.6;
-      g.beginPath(); g.moveTo(bx, by + 30); g.lineTo(bx + Math.sin(t + k) * 5, by - 40); g.stroke();
-    }
-  }
-  // lily pads at the surface
-  for (const p of pads) { g.fillStyle = "#3c8f4a"; g.beginPath(); g.arc(p.x, p.y, p.r, 0.3, Math.PI * 2 - 0.1); g.lineTo(p.x, p.y); g.fill(); }
-  // items
-  for (const it of items) {
-    if (it.taken) continue;
-    g.fillStyle = it.color;
-    if (it.kind === "stick") { g.save(); g.translate(it.x, it.y); g.rotate(0.3); g.fillRect(-34, -5, 68, 10); g.restore(); }
-    else if (it.kind === "shell") { g.beginPath(); g.arc(it.x, it.y, 13, 0, Math.PI * 2); g.fill(); g.strokeStyle = "#8a7a60"; g.lineWidth = 2; g.beginPath(); g.arc(it.x, it.y, 6, 0, Math.PI * 1.5); g.stroke(); }
-    else { g.shadowColor = it.color; g.shadowBlur = 18 + Math.sin(t * 3) * 8; g.beginPath(); g.arc(it.x, it.y, 11, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0; }
-  }
-  // bugs
-  g.fillStyle = "#f2d16b";
-  for (const b of bugs) if (b.alive) { g.beginPath(); g.ellipse(b.x, b.y, 9, 5, 0, 0, Math.PI * 2); g.fill(); }
-  // minnow school
-  g.fillStyle = "#c9e3e6";
-  for (const m of school.fish) if (m.alive) {
-    const x = school.x + m.ox + Math.sin(t * 3 + m.oy) * 6, y = school.y + m.oy;
-    g.beginPath(); g.ellipse(x, y, 10, 4, 0, 0, Math.PI * 2); g.fill();
-    g.beginPath(); g.moveTo(x - (school.vx > 0 ? 10 : -10), y); g.lineTo(x - (school.vx > 0 ? 17 : -17), y - 4); g.lineTo(x - (school.vx > 0 ? 17 : -17), y + 4); g.fill();
-  }
-  // heron warning shadow
-  if (heron.warn > 0) {
-    const k = 1 - heron.warn / 1.6;
-    g.fillStyle = `rgba(0,0,0,${0.15 + k * 0.35})`;
-    g.beginPath(); g.ellipse(heron.x, heron.y, heron.r * (0.6 + k * 0.4), heron.r * 0.5 * (0.6 + k * 0.4), 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = UI.bad; g.font = font(34, 800, true); g.textAlign = "center"; g.fillText("!", heron.x, heron.y + 12);
-  }
-  // pike
-  drawFish(g, pike.x, pike.y, Math.atan2(pike.vy, pike.vx), 3.2, pike.mode === "chase" ? "#4d3a34" : "#3d4a44", false);
-  // player fish
-  drawFish(g, fish.x, fish.y, fish.angle, 1.5, fish.hurtFlash > 0 && Math.floor(fish.hurtFlash * 12) % 2 ? "#ffffff" : "#f2a13c", traits.tailLost);
-  if (fish.carrying) { g.fillStyle = fish.carrying.color; g.beginPath(); g.arc(fish.x + Math.cos(fish.angle) * 32, fish.y + Math.sin(fish.angle) * 32, 7, 0, Math.PI * 2); g.fill(); }
-}
-
-function drawFish(g, x, y, angle, scale, color, noTail) {
-  g.save(); g.translate(x, y); g.rotate(angle); g.scale(scale, scale);
-  g.fillStyle = color;
-  g.beginPath(); g.ellipse(0, 0, 20, 10, 0, 0, Math.PI * 2); g.fill();
-  if (noTail) { g.fillRect(-24, -3, 6, 6); }
-  else { g.beginPath(); g.moveTo(-16, 0); g.lineTo(-32, -11); g.lineTo(-32, 11); g.closePath(); g.fill(); }
-  g.fillStyle = "#111"; g.beginPath(); g.arc(10, -3, 2.6, 0, Math.PI * 2); g.fill();
-  g.restore();
+  if (ev.trapped && !ev.trapped.freed && ev.trapped.seen > 2) tr.ignoredTrapped = true;
+  if (ev.eggs && ev.eggs.guardT > 10) tr.eggsGuarded = true;
+  tr.explored = Math.round((visited.size / (8 * 5)) * 100) / 100;
+  for (const k of ["shallowTime", "deepTime", "hideTime", "schoolTime", "stillTime", "dangerTime", "turtleTime"]) tr[k] = Math.round(tr[k]);
+  ambience("quiet");
 }
