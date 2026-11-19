@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evol</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- The whole game draws into this canvas at 1280x720 and is scaled to fit the window. -->
+  <main id="stage">
+    <canvas id="game" width="1280" height="720" aria-label="Evol game"></canvas>
+  </main>
+  <!-- Controller bar: connect the Arduino joystick, or play with the keyboard. -->
+  <div id="controller">
+    <button id="connectBtn" type="button">Connect joystick (USB)</button>
+    <span id="ctrlStatus">Keyboard: arrows or WASD to move, Space to act</span>
+  </div>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
