@@ -66,7 +66,7 @@ export function fallbackTalk(v, life) {
 }
 
 export function fallbackDiary(day, log) {
-  const things = log.filter(l => l.day === day).slice(-4).map(l => l.text.toLowerCase());
+  const things = log.filter(l => l.day === day && !l.text.startsWith("Talked")).slice(-4).map(l => l.text[0].toLowerCase() + l.text.slice(1));
   return {
     entry: `Day ${day}. ${things.length ? "Today I " + things.join(", then I ") + "." : "Today I mostly walked around and looked at the sky."} The cicadas were so loud. I want tomorrow to come fast.`,
     sticker: "The Wanderer",
