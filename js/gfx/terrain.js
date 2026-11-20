@@ -103,7 +103,7 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
     if (shape.coast) h -= smooth((x - half * 0.3) / (half * 0.5)) * 12;
     for (const [lx, lz, lr] of lakes) h -= smooth(1 - Math.hypot(x - lx, z - lz) / lr) * 4.5;
     // Where you arrive is always dry land: a gentle rise lifts the start above any water
-    const lift = smooth(1 - d / 34); h = h * (1 - lift) + Math.max(h, 2) * lift;
+    const lift = smooth(1 - d / 16); h = h * (1 - lift) + Math.max(h, 2) * lift;
     const edge = smooth((Math.max(Math.abs(x), Math.abs(z)) - half * 0.72) / (half * 0.25));
     return h - edge * 16;
   }
@@ -178,11 +178,11 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   let ti = 0;
   for (let tries = 0; ti < N && tries < N * 6; tries++) {
     const x = (rng() - 0.5) * size * 0.74, z = (rng() - 0.5) * size * 0.74, d = Math.hypot(x, z);
-    if (d < 6) continue; // a small clearing where you arrive
+    if (d < 3.5) continue; // just room to land
     const h = heightAt(x, z);
     if (h < 0.4 || (shape.snow && h > shape.snow)) continue;
     const dens = grove(x * 0.03, z * 0.03, 3);
-    if (dens < -0.15 && rng() > 0.03) continue; // most of the land is woods; a few glades
+    if (dens < -0.45 && rng() > 0.1) continue; // almost all woods; only a few small glades
     const sc = (0.8 + rng() * 0.9) * (spiky ? 1 : 1.25), trunkH = conifer ? 0.9 * sc : spiky ? 0.2 : 1.6 * sc;
     tq.setFromEuler(new THREE.Euler((rng() - 0.5) * 0.12, rng() * 6.28, (rng() - 0.5) * 0.12));
     tv.set(x, h + trunkH / 2 - 0.1, z); ts.set(sc, trunkH, sc); tm.compose(tv, tq, ts); trunks.setMatrixAt(ti, tm);
@@ -225,6 +225,37 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   }
   grass.count = gi; flowers.count = fi; grass.receiveShadow = true;
   group.add(grass, flowers);
+
+  // ----- Set pieces: huge things that give each world its own shape -----
+  const SM = (c, e = 0, r = 0.8) => new THREE.MeshStandardMaterial({ color: c, roughness: r, flatShading: true, emissive: e ? c : 0x000000, emissiveIntensity: e });
+  const piece = () => { const g = new THREE.Group(); return g; };
+  const put = (g, geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz); o.castShadow = true; o.receiveShadow = true; g.add(o); return o; };
+  const SET = {
+    ember: [[4, () => { const g = piece(), H = 22 + rng() * 10; put(g, new THREE.ConeGeometry(16, H, 9), SM(0x24181a), 0, H / 2 - 1, 0); put(g, new THREE.CylinderGeometry(3.2, 3.6, 1.2, 9), SM(0xff5a10, 1.6), 0, H - 3.5, 0); for (let i = 0; i < 4; i++) { const a = i * 1.6 + rng(); put(g, new THREE.BoxGeometry(1.2, 0.3, H * 0.8), SM(0xff4a00, 1.4), Math.cos(a) * 6, H * 0.45, Math.sin(a) * 6, 0.75, -a + Math.PI / 2, 0); } return g; }, 45, 95],
+            [40, () => { const g = piece(), h = 3 + rng() * 6; put(g, new THREE.ConeGeometry(0.9, h, 4), SM(0x15101a, 0, 0.3), 0, h / 2, 0, (rng() - 0.5) * 0.4, 0, (rng() - 0.5) * 0.4); return g; }, 8, 90]],
+    snow: [[45, () => { const g = piece(), h = 6 + rng() * 12; put(g, new THREE.ConeGeometry(1.2 + h * 0.08, h, 5), SM(0xbfe4ff, 0.15, 0.2), 0, h / 2, 0, (rng() - 0.5) * 0.3, 0, (rng() - 0.5) * 0.3); return g; }, 10, 95],
+           [8, () => { const g = piece(); put(g, new THREE.BoxGeometry(18, 7, 10), SM(0xdff2ff, 0.1, 0.3), 0, 2.5, 0, 0, rng() * 3, 0.1); return g; }, 40, 95]],
+    crystal: [[45, () => { const g = piece(), n = 3 + Math.floor(rng() * 3); for (let i = 0; i < n; i++) { const h = 4 + rng() * 14; put(g, new THREE.ConeGeometry(0.8 + h * 0.07, h, 4), SM(rng() < 0.5 ? 0x5affe0 : 0x9a7aff, 0.7, 0.2), (rng() - 0.5) * 4, h / 2 - 0.5, (rng() - 0.5) * 4, (rng() - 0.5) * 0.6, rng() * 3, (rng() - 0.5) * 0.6); } return g; }, 8, 95]],
+    candy: [[28, () => { const g = piece(), h = 7 + rng() * 6; for (let i = 0; i < 8; i++) put(g, new THREE.CylinderGeometry(0.5, 0.5, h / 8, 10), SM(i % 2 ? 0xffffff : 0xe8304a, 0, 0.4), 0, h / 16 + i * h / 8, 0); put(g, new THREE.TorusGeometry(1.4, 0.5, 8, 12, Math.PI), SM(0xe8304a, 0, 0.4), 1.4, h, 0); return g; }, 8, 95],
+            [45, () => { const g = piece(), r = 2 + rng() * 3; put(g, new THREE.SphereGeometry(r, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), SM([0x8af06a, 0xffd23a, 0xff7ad0, 0x7ac8ff][Math.floor(rng() * 4)], 0, 0.3), 0, -0.2, 0); return g; }, 6, 95]],
+    bloom: [[35, () => { const g = piece(), h = 6 + rng() * 6, c = [0xff6aa8, 0xffd23a, 0xffffff, 0xb07aff][Math.floor(rng() * 4)]; put(g, new THREE.CylinderGeometry(0.25, 0.35, h, 6), SM(0x4a9a3a), 0, h / 2, 0); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; const pt = put(g, new THREE.SphereGeometry(1.4, 8, 5), SM(c), Math.cos(a) * 1.8, h, Math.sin(a) * 1.8); pt.scale.set(1, 0.3, 1); } put(g, new THREE.SphereGeometry(1, 8, 6), SM(0xffb83a), 0, h + 0.2, 0); return g; }, 8, 95]],
+    rain: [[14, () => { const g = prop("stilt", rng); g.scale.setScalar(2.2); return g; }, 10, 80],
+           [40, () => { const g = piece(); put(g, new THREE.CylinderGeometry(2 + rng() * 2, 2.2, 0.15, 10), SM(0x3f8a4a), 0, 0.08, 0); return g; }, 8, 95]],
+    desert: [[10, () => { const g = piece(), w = 12 + rng() * 10, h = 8 + rng() * 10; put(g, new THREE.BoxGeometry(w, h, w * 0.7), SM(0xd9663a), 0, h / 2 - 1, 0, 0, rng() * 3, 0); put(g, new THREE.BoxGeometry(w * 0.7, h * 0.5, w * 0.5), SM(0xf0a050), 0, h + h * 0.2, 0); return g; }, 30, 95],
+             [5, () => { const g = piece(); put(g, new THREE.TorusGeometry(7, 1.8, 6, 12, Math.PI), SM(0xc8552f), 0, 0, 0, 0, rng() * 3, 0); return g; }, 20, 90]],
+    jungle: [[3, () => { const g = prop("pyramid", rng); g.scale.setScalar(3.5); return g; }, 25, 80]],
+    spooky: [[20, () => { const g = prop("deadTree", rng); g.scale.setScalar(3 + rng() * 2); return g; }, 10, 95], [3, () => { const g = prop("tower", rng); g.scale.setScalar(3); return g; }, 30, 90]],
+    harbor: [[2, () => { const g = prop("lighthouse", rng); g.scale.setScalar(3); return g; }, 40, 90]],
+    pines: [[4, () => { const g = piece(), H = 34 + rng() * 14; put(g, new THREE.ConeGeometry(22, H, 7), SM(0x5a6a72), 0, H / 2 - 2, 0); put(g, new THREE.ConeGeometry(8.5, H * 0.38, 7), SM(0xf6f8fa), 0, H * 0.82, 0); return g; }, 60, 100]]
+  }[key] || [];
+  for (const [count, make, rMin, rMax] of SET) {
+    for (let n = 0, tries = 0; n < Math.round(count * density) && tries < count * 15; tries++) {
+      const a = rng() * 6.28, r = rMin + rng() * (rMax - rMin), x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
+      if (h < (key === "rain" ? -1 : 0.3)) continue;
+      const o = make(); o.position.set(x, key === "rain" ? Math.max(h, 0) : h - 0.2, z); o.rotation.y = o.rotation.y || rng() * 6.28;
+      addNature(o, x, z); n++;
+    }
+  }
 
   // ----- Landmarks: the things your evolution put in this world (the AI's prop mix, or the biome's) -----
   const skip = new Set(["flower", "fence", "house", "pinkBuilding", "pond", "pool", "roundTree", "fallTree", "pine", "palm", "rock"]);
