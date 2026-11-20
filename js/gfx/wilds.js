@@ -23,8 +23,9 @@ export const GEAR = {
 /** Dress a creature (from models.creature): gear sits on its body, which faces +x. */
 export function outfit(creature) {
   const A = creature.userData.anchor || { top: 2.4, mid: 1.4, front: 1, sy: 1 };
-  const anchors = { head: [0, A.top - 0.12, 0], face: [A.front * 0.92, A.mid + A.sy * 0.25, 0], back: [-A.front * 0.95, A.mid, 0], body: [0, A.mid, 0] };
-  const scale = { head: 1.5, face: 1.4, back: 1.3, body: 1.65 };
+  const hx = A.headX || 0;
+  const anchors = { head: [hx, A.top - 0.12, 0], face: [hx + (A.headX != null ? 0.5 : A.front * 0.92), A.headX != null ? A.top - 0.42 : A.mid + A.sy * 0.25, 0], back: [-A.front * 0.95, A.mid, 0], body: [0, A.mid, 0] };
+  const scale = A.headX != null ? { head: 1.25, face: 1.1, back: 1.2, body: 1.2 } : { head: 1.5, face: 1.4, back: 1.3, body: 1.65 };
   const worn = {};
   return {
     wear(id) {

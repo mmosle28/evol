@@ -11,6 +11,7 @@ import { makeRng } from "../core/rng.js";
 import { makeWorld, gladeSky } from "../gfx/terrain.js";
 import { lookOf } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
+import { alien, animateAlien } from "../gfx/alien.js";
 import { askJSON } from "../ai/claude.js";
 import { lifePrompt } from "../ai/prompts.js";
 import { describeTraits, pondAxes } from "../life/traits.js";
@@ -78,7 +79,7 @@ export const evolvingScene = {
       for (const sh of shards) { sh.position.addScaledVector(sh.userData.v, dt); sh.rotation.x += dt * 5; sh.userData.v.multiplyScalar(0.97); }
       const k = easeOut(clamp(phaseT / 0.9, 0, 1));
       critter.scale.setScalar(Math.max(0.01, k));
-      critter.rotation.y += dt * 1.2; M.animateCreature(critter, t, false);
+      critter.rotation.y += dt * 1.2; animateAlien(critter, t, false);
       if (phaseT > 2.8) grow();
     } else if (phase === "grow" || phase === "wait") {
       // Your world rises out of nothing far below you: hills swell up, then forests and houses pop in
@@ -88,7 +89,7 @@ export const evolvingScene = {
       pops.forEach((p, i) => { const pk = clamp((phaseT - 1.4 - i / pops.length * 2) / 0.35, 0, 1); p.obj.scale.copy(p.s).multiplyScalar(easeOut(pk) * (1 + Math.sin(pk * Math.PI) * 0.3)); if (pk > 0 && !p.popped) { p.popped = true; if (i % 9 === 0) blip("pop"); } });
       for (const sh of shards) { sh.position.addScaledVector(sh.userData.v, dt); sh.userData.v.multiplyScalar(0.97); }
       // You float down toward the clearing in the middle
-      critter.position.y = Math.max(DROP + 2.2, critter.position.y - dt * 7); critter.rotation.y += dt * 0.6; M.animateCreature(critter, t, false);
+      critter.position.y = Math.max(DROP + 2.2, critter.position.y - dt * 7); critter.rotation.y += dt * 0.6; animateAlien(critter, t, false);
       cam.position.lerp(new THREE.Vector3(Math.sin(t * 0.15) * 20, 22, 80), dt * 1.0); cam.lookAt(0, DROP + 2, -10);
       if (phase === "grow" && phaseT > 4.4) setPhase("wait");
       if (phase === "wait" && phaseT > 1.2) { setPhase("dive"); blip("whoosh"); }
@@ -99,7 +100,7 @@ export const evolvingScene = {
       critter.position.y = DROP + 2.2; critter.position.z += (10 - critter.position.z) * Math.min(1, dt * 2);
       cam.position.lerp(new THREE.Vector3(0, DROP + 26, 34), Math.min(1, dt * 3));
       cam.lookAt(0, DROP, 4 * k);
-      planet.update(dt, critter.position); M.animateCreature(critter, t, false);
+      planet.update(dt, critter.position); animateAlien(critter, t, false);
       flash = clamp((phaseT - 1.4) / 0.4, 0, 1) * 0.9;
       if (phaseT > 1.8) go("world");
       return;
@@ -155,7 +156,7 @@ function hatch() {
     view.scene.add(s); shards.push(s);
   }
   const color = BODY_COLORS[life.creature.color];
-  critter = M.creature(life.creature.body, { scale: 0.5, color, accent: new THREE.Color(color).multiplyScalar(0.7).getHex() });
+  critter = alien(life.creature.body, { scale: 0.55, color });
   critter.position.y = 2; critter.scale.setScalar(0.01);
   view.scene.add(critter);
 }

@@ -17,6 +17,7 @@ import { CELL } from "../gfx/town.js";
 import { makeCity, TOOLS } from "../gfx/city.js";
 import { lookOf, defaultPalette } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
+import { alien, animateAlien } from "../gfx/alien.js";
 import { blip, music, ambience } from "../core/audio.js";
 import { outfit, makeTreasures, makeCritters, GEAR } from "../gfx/wilds.js";
 
@@ -54,7 +55,7 @@ function build() {
   // You: your creature trots along beside the cursor and hops when you build
   const color = BODY_COLORS[game.life.creature.color];
   me = { obj: new THREE.Group(), x: 0, z: 4, hop: 0 };
-  const c = M.creature(game.life.creature.body, { scale: 0.8, color, accent: new THREE.Color(color).multiplyScalar(0.7).getHex() });
+  const c = alien(game.life.creature.body, { scale: 0.62, color });
   c.rotation.y = -Math.PI / 2; me.obj.add(c); me.inner = c;
   c.traverse(o => { if (o.isMesh) o.castShadow = true; });
   scene.add(me.obj);
@@ -246,5 +247,5 @@ function tick(dt) {
   const ci = Math.round(me.x / CELL), cj = Math.round(me.z / CELL);
   const cc = city.get(ci, cj), ground = cc && cc.level ? city.topY(ci, cj) : Math.max(0.5, terra.heightAt(me.x, me.z)) + (cc ? 0.15 : 0);
   me.obj.position.set(me.x, ground + Math.sin(me.hop * Math.PI) * 1.4 + (d > 0.3 ? Math.abs(Math.sin(t * 14)) * 0.25 : 0), me.z);
-  M.animateCreature(me.inner, t, d > 0.3);
+  animateAlien(me.inner, t, d > 0.3);
 }

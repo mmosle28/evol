@@ -12,6 +12,7 @@ import { makeWorld, gladeSky } from "../gfx/terrain.js";
 import { makeCity } from "../gfx/city.js";
 import { defaultPalette } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
+import { alien, animateAlien } from "../gfx/alien.js";
 import { askJSON } from "../ai/claude.js";
 import { readingPrompt } from "../ai/prompts.js";
 import { describeTraits } from "../life/traits.js";
@@ -36,7 +37,7 @@ export const readingScene = {
     planet.add(city.group);
     const disc = new THREE.Mesh(new THREE.CylinderGeometry(62, 64, 3, 64), new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.9 })); disc.position.y = -1.6; planet.add(disc);
     planet.scale.setScalar(0.16); planet.position.set(9, 0, -2); scene.add(planet);
-    me = M.creature(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 0.4, 3); scene.add(me);
+    me = alien(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 0.4, 3); scene.add(me);
     // Dr. Wobble: a round purple doctor with big glasses
     doc = new THREE.Group();
     const body = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 1), M.mat(0xb07aff)); body.position.y = 1.3; doc.add(body);
@@ -60,7 +61,7 @@ export const readingScene = {
   update(dt) {
     t += dt;
     planet.rotation.y += dt * 0.15;
-    me.rotation.y = -0.4 + Math.sin(t * 0.6) * 0.3; M.animateCreature(me, t, false);
+    me.rotation.y = -0.4 + Math.sin(t * 0.6) * 0.3; animateAlien(me, t, false);
     doc.position.y = 0.2 + Math.abs(Math.sin(t * 2)) * 0.25;
     if (!reading || t < 1.5) return;
     const tap = Input.tapped();
