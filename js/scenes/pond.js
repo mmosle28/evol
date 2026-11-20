@@ -13,7 +13,7 @@ import { blip, ambience } from "../core/audio.js";
 
 const THREE = window.THREE;
 const QUICK = new URLSearchParams(location.search).has("quick");
-const LIFE = QUICK ? 35 : 75;          // seconds of pond time
+const LIFE = QUICK ? 25 : 30;          // seconds of pond time: short and packed
 const PX = 60, PZ = 40;                // pond half-size
 const DEEP_R = 26;                     // the dark middle of the pond
 const EVENTS = ["frog", "turtle", "eggs", "net", "hook", "trapped", "rain"];
@@ -91,34 +91,34 @@ function build() {
 
   // Water bugs near the surface
   bugs = [];
-  for (let i = 0; i < 8; i++) addBug(randPos(), false);
+  for (let i = 0; i < 11; i++) addBug(randPos(), false);
 
   // A school of minnows
   school = { x: rng.range(-30, 30), z: rng.range(-20, 20), vx: 7, fish: [] };
-  for (let i = 0; i < 7; i++) { const m = M.fish({ scale: 0.45, color: 0x9fd6e8 }); root.add(m); school.fish.push({ obj: m, ox: rng.range(-5, 5), oz: rng.range(-3, 3), alive: true }); }
+  for (let i = 0; i < 9; i++) { const m = M.fish({ scale: 0.45, color: 0x9fd6e8 }); root.add(m); school.fish.push({ obj: m, ox: rng.range(-5, 5), oz: rng.range(-3, 3), alive: true }); }
 
   // The pike
   pike = { obj: M.fish({ scale: 2.8, color: 0x5d7d3a }), x: rng.pick([-45, 45]), z: rng.range(-20, 20), vx: 0, vz: 0, mode: "patrol", target: randPos(), cool: 0, flee: 0 };
   root.add(pike.obj);
 
   // The heron's shadow
-  heron = { next: rng.range(12, 18), warn: 0, x: 0, z: 0, r: 7, obj: new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 })) };
+  heron = { next: rng.range(7, 11), warn: 0, x: 0, z: 0, r: 7, obj: new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0 })) };
   heron.obj.rotation.x = -Math.PI / 2; heron.obj.position.y = 0.1; root.add(heron.obj);
 
   // Things to pick up
   items = [];
   const kinds = ["stick", "shell", "glowing stone", "bottle cap"];
-  const n = rng.int(2, 3);
+  const n = 4;
   for (let i = 0; i < n; i++) { const kind = kinds[(game.seed + i) % kinds.length]; const p = randPos(); const o = M.item(kind); place(o, p.x, kind === "stick" ? 5.6 : 0.6, p.z); items.push({ kind, obj: o, x: p.x, z: p.z, taken: false }); }
 
   // This life's random events (the seed decides which happen)
   const pool = [...EVENTS].sort(() => rng() - 0.5);
-  const present = pool.slice(0, 4);
+  const present = pool.slice(0, 6); // almost everything happens, in a different mix every life
   ev = { present };
-  if (present.includes("frog")) { const p = randPos(10); ev.frog = { obj: M.frog(), x: p.x, z: p.z, hop: 0, snap: rng.range(4, 8) }; place(ev.frog.obj, p.x, 5.7, p.z); }
+  if (present.includes("frog")) { const p = randPos(10); ev.frog = { obj: M.frog(), x: p.x, z: p.z, hop: 0, snap: rng.range(2, 5) }; place(ev.frog.obj, p.x, 5.7, p.z); }
   if (present.includes("turtle")) { const p = randPos(10); ev.turtle = { obj: M.turtle(), x: p.x, z: p.z, ang: 0, hide: 0 }; place(ev.turtle.obj, p.x, 1.2, p.z); }
   if (present.includes("eggs")) { const p = randPos(12); ev.eggs = { obj: M.eggs(), x: p.x, z: p.z, left: 9, guardT: 0 }; place(ev.eggs.obj, p.x, 0.4, p.z); ev.cray = { obj: M.crayfish(), x: p.x + 25, z: p.z, alive: true, mode: "wander", t: rng.range(15, 25) }; inPond(ev.cray, 6); place(ev.cray.obj, ev.cray.x, 0.6, ev.cray.z); }
-  if (present.includes("net")) ev.net = { obj: M.net(), next: rng.range(18, 28), phase: "idle", t: 0, x: 0, z: 0 };
+  if (present.includes("net")) ev.net = { obj: M.net(), next: rng.range(9, 15), phase: "idle", t: 0, x: 0, z: 0 };
   if (present.includes("net")) { ev.net.obj.visible = false; root.add(ev.net.obj); }
   if (present.includes("hook")) { const p = randPos(10); ev.hook = { obj: M.hook(), x: p.x, z: p.z, hooked: false, pull: 0, mash: 0, done: false }; place(ev.hook.obj, p.x, 3.2, p.z); }
   if (present.includes("trapped")) { const p = randPos(12); ev.trapped = { obj: M.fish({ scale: 0.9, color: 0xffd84a }), x: p.x, z: p.z, freed: false, seen: 0, line: new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 3, 10), M.mat(0xffffff)) }; place(ev.trapped.obj, p.x, 1.2, p.z); ev.trapped.line.rotation.x = Math.PI / 2; place(ev.trapped.line, p.x, 1.2, p.z); }

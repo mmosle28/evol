@@ -12,14 +12,14 @@ const biomeList = BIOME_KEYS.map(k => `${k} (${BIOMES[k].label})`).join(", ");
 
 /** Evolution: pond behavior in, a creature and its own tiny world out. */
 export function lifePrompt(traitLines, seed, pastNames) {
-  return `You are the evolution engine of Evol. The player just lived 75 seconds as a fish in a pond.
+  return `You are the evolution engine of Evol. The player just lived 30 seconds as a fish in a pond.
 
 What the fish did:
 ${traitLines.map(l => "- " + l).join("\n")}
 
 Seed: ${seed}. Do not reuse: ${pastNames.join(", ") || "none"}.
 
-1. Invent what it evolves into. The body must come from specific pond actions (lost tail: "stumpTail"; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up junk: gears; glowing stone: glow; freed a fish or guarded eggs: frills). Surprising and earned, like a Minecraft seed.
+1. Invent the alien it evolves into. Its job in its new world is construction: it builds cities there. The body must come from specific pond actions (lost tail: "stumpTail"; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up junk: gears; glowing stone: glow; freed a fish or guarded eggs: frills). Surprising and earned, like a Minecraft seed.
 2. Invent the open world it evolved into, like a Minecraft seed: hills, valleys, lakes and groves, ringed by ocean. The player will build a city there (roads, homes, shops, offices, parks), so also pick its building colors: three soft wall colors and one roof color that suit the creature and the land (think Tiny Glade: gentle, warm, never neon). Every life gets its own world, never the same twice, shaped by the creature (what it eats, how it moves, what it survived). Start from a base biome (${biomeList}) for the props, then make it your own: your own sky and ground colors, a particle color, and a short vibe label. Make it beautiful, like a Tiny Glade postcard: harmonious, soft, golden-hour colors. Surprising but tasteful (a peach-sky desert, a misty lilac marsh).
 ${VOICE}
 

@@ -18,6 +18,7 @@ import { makeCity, TOOLS } from "../gfx/city.js";
 import { lookOf, defaultPalette } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
 import { blip, music, ambience } from "../core/audio.js";
+import { outfit, makeTreasures, makeCritters, GEAR } from "../gfx/wilds.js";
 
 const THREE = window.THREE;
 const QUICK = new URLSearchParams(location.search).has("quick");
@@ -25,6 +26,7 @@ const DAY_SECONDS = QUICK ? 120 : 270;
 const CURSOR_SPEED = 12, HOLD = 0.3;
 const MILESTONES = [[12, "Your first neighbors moved in!", "Welcomed the first neighbors."], [60, "It's a real neighborhood now.", "Grew a real neighborhood."], [150, "A town! People are talking.", "Grew into a proper town."], [300, "City status. Look at you.", "Reached city size."]];
 
+let gear, treasures, critters;
 let view, terra, sky, city, cursor, ghost, me, t, dayT, holdT, wheel, tool, drawing, lastCell, growT, pops, puffs, ending, endT, toast, stats, glowSet, light0, milestone;
 
 function build() {
@@ -56,6 +58,14 @@ function build() {
   c.rotation.y = -Math.PI / 2; me.obj.add(c); me.inner = c;
   c.traverse(o => { if (o.isMesh) o.castShadow = true; });
   scene.add(me.obj);
+  // Your evolved alien is the builder here: it starts in a hard hat
+  gear = outfit(me.obj); gear.wear("hardhat");
+
+  // Life in the world: wandering creatures and hidden treasures
+  const wrng = makeRng(game.seed ^ 0x51ed27);
+  critters = makeCritters(terra, wrng, (color, r) => { const o = new THREE.Group(); const b = M.creature({ shape: r.pick(["round", "blob", "long"]), eyes: 2, limbs: 4, limbType: "legs", features: [r.pick(["antennae", "frills", "horns"])] }, { scale: 0.22, color }); b.rotation.y = -Math.PI / 2; o.add(b); return o; });
+  treasures = makeTreasures(terra, wrng, 8);
+  scene.add(critters.group, treasures.group);
 
   const camera = makeCamera(42);
   camera.position.set(-5, 24, 30); camera.lookAt(0, 0, 0);
@@ -103,10 +113,10 @@ export const worldScene = {
   enter() {
     build(); stage.view = view;
     t = 0; dayT = 0; holdT = 0; wheel = false; tool = "road"; drawing = false; lastCell = ""; growT = 0; pops = []; puffs = []; ending = false; endT = 0; toast = null; glowSet = false; milestone = 0;
-    stats = game.stats = { actions: 0, bulldozed: 0, placed: {}, first: null, firstAt: 0 };
+    stats = game.stats = { actions: 0, bulldozed: 0, placed: {}, first: null, firstAt: 0, found: [] };
     const w = game.life.world;
     music(lookOf(w.biome, w.look).notes); ambience("quiet");
-    setToast(`Welcome to ${w.name}. Build anywhere: start with a road.`);
+    setToast(`You're the builder of ${w.name}. Lay a road, or go find the sparkles.`);
     if (new URLSearchParams(location.search).has("debug")) window.evolWorld = { city: () => city, cursor: () => cursor, setDay: v => { dayT = v; }, grow: n => { for (let k = 0; k < n; k++) city.grow(); },
       build: (type, cellsList) => { const prev = tool; tool = type; for (const [i, j] of cellsList) use(i, j); tool = prev; } };
   },
@@ -125,7 +135,8 @@ export const worldScene = {
         const sum = city.summary();
         game.town = sum; game.townCells = [...city.cells.entries()].map(([k, c]) => [k, c]);
         Object.assign(game.stats, sum, { placed: undefined }, Object.fromEntries(Object.entries(stats.placed).map(([k, v]) => ["placed_" + k, v])));
-        note(`Ended the day with ${sum.population} people, ${sum.jobs} jobs and ${sum.roads} road tiles.`);
+        note(`Ended the day with ${sum.population} people, ${sum.jobs} jobs and ${sum.roads} road tiles, wearing ${gear.worn().map(id => GEAR[id].name).join(", ")}.`);
+        game.stats.found = stats.found.length; game.stats.wearing = gear.worn().join(",");
         go("diary", { photo: stage.snapshot() });
       }
       return;
@@ -176,6 +187,11 @@ export const worldScene = {
     view.exposure = 0.78 - dusk * 0.08;
     if (dayT > 0.8 && !glowSet) { glowSet = true; city.town.setGlow(1); setToast("The lights are coming on."); }
 
+    // ----- Exploring: creatures scatter, treasures get found -----
+    critters.update(dt, me); treasures.update(t);
+    const tr = treasures.check(me.x, me.z);
+    if (tr) { gear.wear(tr.id); stats.found.push(tr.id); blip("yay"); setToast(`You found ${GEAR[tr.id].name}! Your builder put it on.`); note(`Found ${GEAR[tr.id].name} out in the wild and wore it.`); }
+
     tick(dt);
   },
   draw(g) {
@@ -187,7 +203,7 @@ export const worldScene = {
     g.fillStyle = "rgba(255,255,255,0.22)"; rect(g, 46, 90, 290, 8, 4); g.fill();
     g.fillStyle = dayT > 0.6 ? "#ffab6a" : "#ffe59a"; rect(g, 46, 90, 290 * (1 - dayT) + 0.01, 8, 4); g.fill();
     // City numbers
-    const hud = `👥 ${st.population}   ·   💼 ${st.jobs} jobs   ·   😊 ${st.homes ? st.happiness + "%" : "-"}`;
+    const hud = `👥 ${st.population}   ·   💼 ${st.jobs} jobs   ·   😊 ${st.homes ? st.happiness + "%" : "-"}   ·   🎁 ${stats.found.length}/8`;
     g.font = font(19, 600); const hw = g.measureText(hud).width + 44;
     g.fillStyle = "rgba(30,26,46,0.55)"; rect(g, W - 24 - hw, 20, hw, 46, 23); g.fill();
     g.fillStyle = UI.white; g.textAlign = "right"; g.fillText(hud, W - 46, 50);

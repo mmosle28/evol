@@ -86,7 +86,7 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   const half = size / 2, ox = rng() * 1000, oz = rng() * 1000;
   // A lake beside the building ground (so you can build out over water), plus others further away
   const lakes = [];
-  if (shape.lakes) { const a = rng() * 6.28; lakes.push([Math.cos(a) * 24, Math.sin(a) * 24, 13 + rng() * 4]); }
+  if (shape.lakes) { const a = rng() * 6.28; lakes.push([Math.cos(a) * 30, Math.sin(a) * 30, 12 + rng() * 4]); }
   for (let i = 1; i < shape.lakes + 1; i++) { const a = rng() * 6.28, r = 60 + rng() * 50; lakes.push([Math.cos(a) * r, Math.sin(a) * r, 14 + rng() * 10]); }
 
   function heightAt(x, z) {
@@ -96,6 +96,8 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
     let h = noise((x + ox) * 0.009, (z + oz) * 0.009, 4) * shape.hills * hillK + detail((x + ox) * 0.04, (z + oz) * 0.04, 2) * shape.rough + 1.6;
     if (shape.coast) h -= smooth((x - half * 0.3) / (half * 0.5)) * 12;
     for (const [lx, lz, lr] of lakes) h -= smooth(1 - Math.hypot(x - lx, z - lz) / lr) * 4.5;
+    // Where you arrive is always dry land: a gentle rise lifts the start above any water
+    const lift = smooth(1 - d / 34); h = h * (1 - lift) + Math.max(h, 2) * lift;
     const edge = smooth((Math.max(Math.abs(x), Math.abs(z)) - half * 0.72) / (half * 0.25));
     return h - edge * 16;
   }
