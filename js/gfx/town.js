@@ -31,7 +31,7 @@ function gable(w, d, h) {
   return g;
 }
 
-export function makeTown(world, palette, { onChange } = {}) {
+export function makeTown(world, palette, { onChange, style = () => ({}) } = {}) {
   const group = new THREE.Group();
   const cells = new Map(); // "i,j" -> height
   const meshes = new Map(); // "i,j" -> Group
@@ -58,7 +58,8 @@ export function makeTown(world, palette, { onChange } = {}) {
     const overWater = hi < 0.35;
     const base = overWater ? 0.5 : hi + 0.05;
     const add = (geo, m, px, py, pz, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(px, py, pz); o.rotation.y = ry; o.castShadow = true; o.receiveShadow = true; g.add(o); return o; };
-    const wallC = walls[Math.floor(hash(i, j) * walls.length)];
+    const st = style(i, j) || {};
+    const wallC = st.wall != null ? st.wall : walls[Math.floor(hash(i, j) * walls.length)];
 
     if (overWater) {
       // Pier: wooden deck on posts
@@ -71,7 +72,7 @@ export function makeTown(world, palette, { onChange } = {}) {
     }
 
     const lone = SIDES.every(([a, b]) => heightOf(i + a, j + b) === 0);
-    const tower = lone && h >= 3;
+    const tower = lone && h >= 3 && !st.noSpire;
     const w = tower ? CELL * 0.82 : CELL;
     for (let k = 0; k < h; k++) {
       const y = base + k * FLOOR;
@@ -82,6 +83,7 @@ export function makeTown(world, palette, { onChange } = {}) {
         if (heightOf(i + a, j + b) > k) return; // wall is shared with a neighbor: no window
         const ry = [Math.PI / 2, -Math.PI / 2, 0, Math.PI][s];
         const ox = a * (w / 2 + 0.03), oz = b * (w / 2 + 0.03);
+        if (st.awning && k === 0) add(new THREE.BoxGeometry(CELL * 0.86, 0.12, 0.9), mat(st.awning, 0.8), a * (w / 2 + 0.45), y + 2.0, b * (w / 2 + 0.45), ry);
         const door = k === 0 && !overWater && hash(i, j, s + 7) < 0.45 && s === Math.floor(hash(i, j, 3) * 4);
         if (door) {
           add(new THREE.BoxGeometry(0.95, 1.6, 0.1), mat(0x6a4630), ox, y + 0.8, oz, ry);
@@ -98,7 +100,11 @@ export function makeTown(world, palette, { onChange } = {}) {
     // Roof
     const top = base + h * FLOOR;
     const same = SIDES.map(([a, b]) => heightOf(i + a, j + b) >= h);
-    if (tower) {
+    if (st.flat) {
+      // Shops and offices: flat roof with a parapet and a rooftop unit
+      add(new THREE.BoxGeometry(CELL + 0.1, 0.35, CELL + 0.1), mat(0xe8e2d8), 0, top + 0.17, 0);
+      add(new THREE.BoxGeometry(0.9, 0.6, 0.7), mat(0xb8b8c0), (hash(i, j, 11) - 0.5) * 1.4, top + 0.6, (hash(i, j, 12) - 0.5) * 1.4);
+    } else if (tower) {
       add(new THREE.ConeGeometry(w * 0.82, 3.2, 8), mat(roofC, 0.8), 0, top + 1.6, 0);
       add(new THREE.SphereGeometry(0.16, 8, 6), mat(0xffd36a, 0.4), 0, top + 3.3, 0);
     } else if (same.every(Boolean)) {
@@ -137,6 +143,8 @@ export function makeTown(world, palette, { onChange } = {}) {
       if (onChange) onChange();
       return meshes.get(key(i, j));
     },
+    /** Set a cell's height directly (the city uses this as buildings grow). */
+    set(i, j, h) { if (h > 0) cells.set(key(i, j), Math.min(MAX_H, h)); else cells.delete(key(i, j)); refresh(i, j); const g = meshes.get(key(i, j)); return g || null; },
     remove(i, j) {
       const h = heightOf(i, j); if (!h) return false;
       if (h === 1) cells.delete(key(i, j)); else cells.set(key(i, j), h - 1);

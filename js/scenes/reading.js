@@ -9,7 +9,7 @@ import { W, H, font, wrapText, box, hint, clamp, rect, sticker } from "../core/d
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
 import { makeWorld, gladeSky } from "../gfx/terrain.js";
-import { makeTown } from "../gfx/town.js";
+import { makeCity } from "../gfx/city.js";
 import { defaultPalette } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
 import { askJSON } from "../ai/claude.js";
@@ -27,13 +27,13 @@ export const readingScene = {
     const scene = new THREE.Scene();
     const { biome, look } = game.life.world;
     const skyL = gladeSky(scene, { sky: [0x8ec5ff, 0xffe6cc], ground: [0xb0c890, 0xa0b880] }); scene.fog = null;
-    // Your town as a little diorama on the doctor's desk: the same world and every floor you built
+    // Your city as a little diorama on the doctor's desk: the same world and every floor you built
     const terra = makeWorld(biome, makeRng(game.seed ^ 0x9e3779b9), { look, density: 0.5, size: 84, segments: 84 });
     planet = new THREE.Group();
     terra.group.children[1].visible = false; planet.add(terra.group);
-    const town = makeTown(terra, game.life.world.palette || defaultPalette(biome));
-    for (const [k, h] of game.townCells || []) { const [i, j] = k.split(",").map(Number); for (let n = 0; n < h; n++) town.add(i, j); }
-    planet.add(town.group);
+    const city = makeCity(terra, game.life.world.palette || defaultPalette(biome));
+    for (const [k, c] of game.townCells || []) { const [i, j] = k.split(",").map(Number); city.place(i, j, c.type); if (c.level) { city.get(i, j).level = c.level; city.town.set(i, j, c.level); } }
+    planet.add(city.group);
     const disc = new THREE.Mesh(new THREE.CylinderGeometry(62, 64, 3, 64), new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.9 })); disc.position.y = -1.6; planet.add(disc);
     planet.scale.setScalar(0.16); planet.position.set(9, 0, -2); scene.add(planet);
     me = M.creature(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 0.4, 3); scene.add(me);

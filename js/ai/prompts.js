@@ -20,7 +20,7 @@ ${traitLines.map(l => "- " + l).join("\n")}
 Seed: ${seed}. Do not reuse: ${pastNames.join(", ") || "none"}.
 
 1. Invent what it evolves into. The body must come from specific pond actions (lost tail: "stumpTail"; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up junk: gears; glowing stone: glow; freed a fish or guarded eggs: frills). Surprising and earned, like a Minecraft seed.
-2. Invent the open world it evolved into, like a Minecraft seed: hills, valleys, lakes and groves, ringed by ocean. The player will build a town there, Townscaper style, so also pick its building colors: three soft wall colors and one roof color that suit the creature and the land (think Tiny Glade: gentle, warm, never neon). Every life gets its own world, never the same twice, shaped by the creature (what it eats, how it moves, what it survived). Start from a base biome (${biomeList}) for the props, then make it your own: your own sky and ground colors, a particle color, and a short vibe label. Make it beautiful, like a Tiny Glade postcard: harmonious, soft, golden-hour colors. Surprising but tasteful (a peach-sky desert, a misty lilac marsh).
+2. Invent the open world it evolved into, like a Minecraft seed: hills, valleys, lakes and groves, ringed by ocean. The player will build a city there (roads, homes, shops, offices, parks), so also pick its building colors: three soft wall colors and one roof color that suit the creature and the land (think Tiny Glade: gentle, warm, never neon). Every life gets its own world, never the same twice, shaped by the creature (what it eats, how it moves, what it survived). Start from a base biome (${biomeList}) for the props, then make it your own: your own sky and ground colors, a particle color, and a short vibe label. Make it beautiful, like a Tiny Glade postcard: harmonious, soft, golden-hour colors. Surprising but tasteful (a peach-sky desert, a misty lilac marsh).
 ${VOICE}
 
 JSON only:
@@ -30,13 +30,13 @@ JSON only:
 
 /** Tonight's diary page. */
 export function diaryPrompt(life, todayLog, answers, axes) {
-  return `Game Evol. Write tonight's diary page for a ${life.creature.name} after its first day in its new world, ${life.world.name}, where it spent the day building a town (Townscaper style: tap to add a floor, hold to take one away).
+  return `Game Evol. Write tonight's diary page for a ${life.creature.name} after its first day in its new world, ${life.world.name}, where it spent the day building a city: laying roads, zoning homes, shops, offices and parks, and watching it grow.
 
 What happened today:
 ${todayLog.map(l => "- " + l).join("\n") || "- mostly looked around"}
 
-Diary: first person, simple and sincere, small sensory details (the light, the water, the sound of stone), 3 to 5 short sentences about what it actually built.
-Then a "sticker": a funny archetype for who they were today (2 to 4 words) and one playful observation about HOW they built.
+Diary: first person, simple and sincere, small sensory details (the light, the water, the sound of stone), 3 to 5 short sentences about the city it actually built and the people who moved in.
+Then a "sticker": a funny archetype for who they were today (2 to 4 words) and one playful observation about HOW they planned their city.
 ${VOICE}
 JSON only: {"entry": string, "sticker": string, "note": one sentence}`;
 }
@@ -44,13 +44,13 @@ JSON only: {"entry": string, "sticker": string, "note": one sentence}`;
 /** The final reading, with the "receipts" for how the doctor figured it out. */
 export function readingPrompt(life, pondLines, log, answers, stats, axes, history) {
   const past = history.map(r => r.reading && r.reading.archetype).filter(Boolean).slice(-8);
-  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, woke up in its own world ${life.world.name}, and spent a day building a town there (Townscaper style). You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
+  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, woke up in its own world ${life.world.name}, and spent a day building a city there (a little city builder: roads, homes, shops, offices, parks; buildings only grow with a road, and grow taller when the neighborhood has what people want). You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
 
 As a fish:
 ${pondLines.map(l => "- " + l).join("\n")}
 Building:
 ${log.map(l => "- " + l.text).join("\n") || "- not much"}
-The town in numbers: ${JSON.stringify(stats)} (columns = buildings, floors = total floors, tallest = highest stack out of 7, towers = lone tall stacks, overWater = built on piers, clusters = separate groups of buildings, density = how tightly packed 0-1, removed = floors taken back down, firstAt = seconds before the first stone)
+The city in numbers: ${JSON.stringify(stats)} (population, jobs, happiness 0-100, roads = road tiles, homes/shops/offices/parks = buildings, unconnected = buildings with no road, bridges = roads over water, bulldozed = things torn down, first = the very first thing built, firstAt = seconds before building anything, clusters = separate neighborhoods, density = how tightly packed 0-1, tallest = floors)
 Past archetypes (find something new): ${past.join(", ") || "none"}
 
 Read the person through how they lived and built: tall and proud or low and spread out, one tight village or scattered hamlets, building over water, tearing down and redoing, hesitating before the first stone, and how that echoes what the fish did. Connect at least one pond moment to one building habit.

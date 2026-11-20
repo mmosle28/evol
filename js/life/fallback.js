@@ -50,32 +50,32 @@ export function fallbackLife(traits, seed) {
 export function fallbackDiary(log) {
   const things = log.slice(-4).map(l => l.text[0].toLowerCase() + l.text.slice(1).replace(/\.$/, ""));
   return {
-    entry: `Day one. ${things.length ? "Today I " + things.join(", then I ") + "." : "Today I mostly explored. The hills go on forever."} The town is small, but it's mine.`,
-    sticker: "The New Builder",
-    note: "You build the way you swam: one careful stone at a time."
+    entry: `Day one. ${things.length ? "Today I " + things.join(", then I ") + "." : "Today I mostly looked at the empty land and imagined streets."} It's small, but people live here now.`,
+    sticker: "The New Mayor",
+    note: "You build the way you swam: one careful move at a time."
   };
 }
 
 export function fallbackReading(axes, stats) {
   const st = stats || {};
-  const tall = (st.tallest || 0) >= 5, spread = (st.clusters || 0) >= 3, tight = (st.density || 0) >= 0.5, redo = (st.removed || 0) >= 4, water = (st.overWater || 0) > 0;
-  const archetype = tall && tight ? "The Skyline Hoarder" : spread ? "The Hamlet Sprinkler" : water ? "The Pier Dreamer" : redo ? "The Gentle Perfectionist" : tight ? "The Cozy Packer" : "The Quiet Founder";
+  const planner = st.first === "road", parks = (st.parks || 0) >= 2, jobsy = (st.jobs || 0) >= (st.population || 0) * 0.5, sprawl = (st.clusters || 0) >= 3, redo = (st.bulldozed || 0) >= 4, lost = (st.unconnected || 0) >= 2;
+  const archetype = planner && parks ? "The Sidewalk Romantic" : planner ? "The Grid Whisperer" : lost ? "The Dream-First Mayor" : sprawl ? "The Suburb Sprinkler" : redo ? "The Restless Planner" : parks ? "The Green Mayor" : "The Quiet Founder";
   const receipts = [];
-  if (st.tallest) receipts.push(`Your tallest building reached ${st.tallest} floors.`);
-  if (st.clusters) receipts.push(`You built ${st.clusters} separate group${st.clusters > 1 ? "s" : ""} of houses.`);
-  if (st.removed) receipts.push(`You took ${st.removed} floor${st.removed > 1 ? "s" : ""} back down.`);
-  if (st.overWater) receipts.push(`You built ${st.overWater} house${st.overWater > 1 ? "s" : ""} out over the water.`);
-  if (st.firstAt) { const sec = Math.max(1, Math.round(st.firstAt)); receipts.push(`You waited ${sec} second${sec > 1 ? "s" : ""} before the first stone.`); }
+  if (st.first) receipts.push(`The very first thing you built was ${st.first === "road" ? "a road" : st.first === "house" ? "homes" : "a " + st.first}.`);
+  if (st.population) receipts.push(`${st.population} people moved in; there were ${st.jobs || 0} jobs.`);
+  if (st.parks != null) receipts.push(`You planted ${st.parks} park${st.parks === 1 ? "" : "s"}.`);
+  if (st.bulldozed) receipts.push(`You bulldozed ${st.bulldozed} thing${st.bulldozed > 1 ? "s" : ""} to replan.`);
+  if (st.bridges) receipts.push(`You built ${st.bridges} bridge tile${st.bridges > 1 ? "s" : ""} over water.`);
   while (receipts.length < 3) receipts.push(["You took your time in the pond.", "You let a whole world grow without blinking.", "You built until the lights came on."][receipts.length]);
   const top = Object.entries(axes).sort((a, b) => b[1] - a[1]);
   return {
     archetype,
     lines: [
-      tall ? "You build up, not out. When something matters, you stack on it until people can see it from far away." : "You kept things low and human-sized. Nothing you made needed to prove anything.",
-      spread ? "You started over in new places instead of crowding one spot. You like having room to breathe." : "You kept everything close together, like you wanted your town to be able to hear itself.",
-      `Under all of it is the same ${top[0][0]} streak your fish had in the pond. It just has walls now.`
+      planner ? "You laid the road before anyone lived there. You like knowing how people will get somewhere before you invite them." : "You put homes down first and figured out the roads later. You start with who, not how.",
+      parks ? "You saved room for parks even when you could have built more. You care how a place feels, not just what it holds." : jobsy ? "You made sure there was work for everyone. You think about what keeps a place going." : "Your city was mostly homes. A place to land matters more to you than a place to hustle.",
+      `Under all of it is the same ${top[0][0]} streak your fish had in the pond. It just has streets now.`
     ],
     receipts: receipts.slice(0, 3),
-    question: redo ? "What would you build if you knew you couldn't take it back?" : "What would you build if nobody was ever going to see it?"
+    question: redo ? "What would you build if you knew you couldn't take it back?" : "Who would you want living on your street?"
   };
 }

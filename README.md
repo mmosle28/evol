@@ -1,9 +1,9 @@
 # Evol
 
 You start as a fish. What you do in the pond decides what you evolve into and the world that grows around
-you. Then you build a town in it, and Dr. Wobble reads who you are from how you lived and how you built.
+you. Then you build a city in it, and Dr. Wobble reads who you are from how you lived and how you planned.
 
-Inspirations: **Townscaper** (tap to build and the town shapes itself), **Tiny Glade** (soft, beautiful worlds
+Inspirations: **city builders** like SimCity (roads, zones, a city that grows on its own), **Townscaper** (houses that shape themselves), **Tiny Glade** (soft, beautiful worlds
 with warm light), **Minecraft seeds** (a whole world from one number), and **Doki Doki Universe** (a playful
 personality doctor that notices patterns you didn't). Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 
@@ -12,14 +12,14 @@ personality doctor that notices patterns you didn't). Built for the IEEE CS Game
 | Control | Keyboard | Arduino controller |
 |---|---|---|
 | Swim, move the build cursor | Arrow keys or WASD | Joystick |
-| Bite / grab; tap to build | Space or Enter (tap) | Press the joystick down (its button) |
-| Take a floor away | Hold Space | Hold the joystick button |
+| Bite / grab; use the current tool | Space or Enter (tap) | Press the joystick down (its button) |
+| Open the tool wheel | Hold Space, left/right, let go | Hold the button, flick left/right, let go |
 
 1. **The pond (75 s).** You're a small fish. Eat pondweed, bugs or minnows; pick things up; hide in reeds. Bite the pike from behind and it flees, head-on and it bites back. A heron can take your tail. Each seed picks 4 random events: a frog, a turtle you can hide under, fish eggs and a crayfish raiding them, a kid's net, a baited hook (mash to escape), a fish tangled in fishing line you can free, or a rain shower full of bugs.
 2. **Evolving (one transition, no menus).** Your fish spins into a cocoon in space while your pond moments drift past. It hatches into what you earned, then your world rises out of nothing far below you: hills, lakes, then groves of trees popping in from the middle outward. The camera swoops down to where you'll build.
-3. **Build (4 minutes, Townscaper style).** Move the cursor and tap to add a floor; hold to take one away. You never pick walls or roofs: houses join into rows, windows appear only where a wall faces open air, doors face open ground, gables run along a row, a lone tall stack becomes a tower with a spire, enclosed tops become roof gardens, and anything over the lake stands on a pier. At dusk the windows light up.
+3. **Build a city (about 4 minutes).** Tools: road, homes, shops, offices, park, bulldoze. Tap with the road tool to start drawing a road as you move, tap again to stop. Buildings only grow if they touch a road, and they grow taller on their own when their neighborhood has what people want: homes want shops and parks, shops want homes, offices want workers. Cars start driving your streets, roads over water become bridges, and the buildings join into proper blocks (windows, doors, awnings, roofs worked out from their neighbors). Watch population, jobs and happiness. At dusk the windows light up.
 4. **Diary.** A page with a photo of your town and a sticker naming who you were.
-5. **Dr. Wobble's reading.** An archetype, three observations connecting how you swam to how you built, and the receipts: the exact moments and numbers it's based on. Your town sits on his desk as a diorama. Then live another life.
+5. **Dr. Wobble's reading.** An archetype, three observations connecting how you swam to how you built, and the receipts: the exact moments and numbers it's based on. Your city sits on his desk as a diorama. Then live another life.
 
 There's no score to beat. Every life is a different creature, a different world and a different town.
 Pond dangers (bitten, hooked, netted, tail lost) don't end the game; they change what you become.
@@ -40,8 +40,8 @@ stateDiagram-v2
     Reading --> Title: back to title
 ```
 
-Inside World, building is just two inputs: tap adds a floor, hold removes one. The town rebuilds the
-touched cell and its four neighbors so walls, windows and roofs always agree.
+Inside World, the tool wheel and road drawing are modes of the same scene. The city simulation ticks every
+second or so: each building that has a road and what it needs grows one floor.
 Every frame: read input → update the scene → render 3D → draw the 2D overlay.
 
 ## Where the AI is
@@ -55,9 +55,8 @@ All prompts are in `js/ai/prompts.js`. The AI runs through Claude on claude.ai (
 | Night | The diary page and the day's sticker |
 | The end | Dr. Wobble's archetype, three observations, the receipts, and a question, never repeating past lives |
 
-The town is measured for the reading: buildings, floors, tallest stack, towers, piers over water, how many
-separate clusters, how tightly packed, how many floors you took back down, and how long you waited before the
-first stone. Personality is also tracked on 7 hidden axes from the pond (curious, kind, bold, calm, social, playful, driven).
+The city is measured for the reading: population, jobs, happiness, roads, homes, shops, offices, parks, buildings
+left without a road, bridges, what you built first, how much you bulldozed, and how spread out it is. Personality is also tracked on 7 hidden axes from the pond (curious, kind, bold, calm, social, playful, driven).
 
 ## Hardware (bonus)
 
@@ -81,7 +80,8 @@ js/gfx/models.js           every low-poly model, built in code
 js/gfx/sky.js              sky for the pond and evolving scenes
 js/gfx/biomes.js           the 8 worlds, their props, stickers and greetings
 js/gfx/terrain.js          the world from a seed: smooth meadows, lakes, groves, sky and light
-js/gfx/town.js             Townscaper-style building: floors, walls, windows, doors, roofs, towers, piers
+js/gfx/city.js             the city: roads, zones, growth rules, population, jobs, happiness, traffic
+js/gfx/town.js             draws buildings Townscaper style: walls, windows, doors, awnings, roofs
 js/gfx/planet.js           small floating planets on the title screen
 js/ai/claude.js            AI call with timeout, validation and fallback
 js/ai/prompts.js           every prompt
@@ -101,7 +101,7 @@ arduino/, bridge/          controller sketch and joystick bridge
 - **Challenge:** making randomness feel earned. The AI only sees what you actually did, and the game shows you that list before the reveal.
 - **Challenge:** AI answers are unpredictable, so every answer goes through a validator that repairs or replaces anything broken.
 - **Challenge:** a whole world from one number. Seeded value noise makes the hills, lakes and coast; trees grow in groves with open meadows between; the building ground stays gentle and always has a lake beside it.
-- **Challenge:** Townscaper with one button. Every cell only stores a height; each house's shape is worked out from its neighbors whenever anything changes.
+- **Challenge:** a city builder with one button. Tap uses a tool, hold opens the tool wheel, and roads are drawn by toggling and moving. Every cell stores just a type and a level; shapes come from the neighbors.
 - **Challenge:** insight without judging single actions. The reading looks for patterns across the pond and the town, and shows its receipts.
 
 ## Resources and credits
