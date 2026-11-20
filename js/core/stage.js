@@ -26,7 +26,11 @@ export const stage = {
     if (!this.view) return;
     const c = this.view.camera, r = this.renderer.domElement.getBoundingClientRect();
     if (Math.abs(c.aspect - r.width / r.height) > 0.01) { c.aspect = r.width / r.height; c.updateProjectionMatrix(); }
-    this.renderer.render(this.view.scene, c);
+    // Scenes can opt into filmic color (the built world uses it; older scenes keep the plain look)
+    const r2 = this.renderer, tone = this.view.tone ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+    if (r2.toneMapping !== tone) r2.toneMapping = tone;
+    r2.toneMappingExposure = this.view.exposure || 1;
+    r2.render(this.view.scene, c);
   },
   /** 3D world point -> overlay pixel (1280x720). Returns null if behind the camera. */
   toScreen(v3) {

@@ -44,7 +44,7 @@ export const diaryScene = {
     g.fillStyle = UI.red; g.fillRect(116, 50, 3, 620);
 
     g.fillStyle = UI.ink; g.textAlign = "left"; g.font = font(40, 600, FONT.hand);
-    g.fillText(`Day one on ${game.life.world.name}`, 130, 115);
+    g.fillText(`Day one in ${game.life.world.name}`, 130, 115);
 
     // Photo of the day, taped on
     if (img && img.complete && img.naturalWidth) {

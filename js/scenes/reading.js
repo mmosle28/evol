@@ -8,8 +8,9 @@ import { stage, makeCamera } from "../core/stage.js";
 import { W, H, font, wrapText, box, hint, clamp, rect, sticker } from "../core/draw.js";
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
-import { worldSky } from "../gfx/planet.js";
-import { makeWorld } from "../gfx/terrain.js";
+import { makeWorld, gladeSky } from "../gfx/terrain.js";
+import { makeTown } from "../gfx/town.js";
+import { defaultPalette } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
 import { askJSON } from "../ai/claude.js";
 import { readingPrompt } from "../ai/prompts.js";
@@ -25,11 +26,16 @@ export const readingScene = {
   enter() {
     const scene = new THREE.Scene();
     const { biome, look } = game.life.world;
-    worldSky(scene, biome, { look });
-    // Your world as a little diorama on the doctor's desk
-    planet = makeWorld(biome, makeRng(game.seed ^ 0x9e3779b9), { look, density: 2, segments: 70 });
-    planet.group.children[1].visible = false;
-    planet.group.scale.setScalar(0.06); planet.group.position.set(9, 0, 0); scene.add(planet.group);
+    const skyL = gladeSky(scene, { sky: [0x8ec5ff, 0xffe6cc], ground: [0xb0c890, 0xa0b880] }); scene.fog = null;
+    // Your town as a little diorama on the doctor's desk: the same world and every floor you built
+    const terra = makeWorld(biome, makeRng(game.seed ^ 0x9e3779b9), { look, density: 0.5, size: 84, segments: 84 });
+    planet = new THREE.Group();
+    terra.group.children[1].visible = false; planet.add(terra.group);
+    const town = makeTown(terra, game.life.world.palette || defaultPalette(biome));
+    for (const [k, h] of game.townCells || []) { const [i, j] = k.split(",").map(Number); for (let n = 0; n < h; n++) town.add(i, j); }
+    planet.add(town.group);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(62, 64, 3, 64), new THREE.MeshStandardMaterial({ color: 0xd9b48a, roughness: 0.9 })); disc.position.y = -1.6; planet.add(disc);
+    planet.scale.setScalar(0.16); planet.position.set(9, 0, -2); scene.add(planet);
     me = M.creature(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 0.4, 3); scene.add(me);
     // Dr. Wobble: a round purple doctor with big glasses
     doc = new THREE.Group();
@@ -38,7 +44,7 @@ export const readingScene = {
     const coat = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.4, 1.1, 8), M.mat(0xffffff)); coat.position.y = 0.6; doc.add(coat);
     doc.position.set(12, 0.2, 1); doc.rotation.y = -0.6; scene.add(doc);
     const camera = makeCamera(40); camera.position.set(2, 5, 24); camera.lookAt(2, 2.5, 0);
-    view = { scene, camera }; stage.view = view;
+    view = { scene, camera, tone: true, exposure: 1.05 }; stage.view = view;
     t = 0; sel = 0; reading = null;
     askJSON(readingPrompt(game.life, describeTraits(game.traits), game.log, game.answers, game.stats || {}, game.axes, game.history), {
       validate: r => {
@@ -53,7 +59,7 @@ export const readingScene = {
   },
   update(dt) {
     t += dt;
-    planet.group.rotation.y += dt * 0.15;
+    planet.rotation.y += dt * 0.15;
     me.rotation.y = -0.4 + Math.sin(t * 0.6) * 0.3; M.animateCreature(me, t, false);
     doc.position.y = 0.2 + Math.abs(Math.sin(t * 2)) * 0.25;
     if (!reading || t < 1.5) return;

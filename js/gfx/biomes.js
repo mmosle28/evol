@@ -87,3 +87,14 @@ export const STICKER_IDS = Object.keys(STICKERS);
 
 export const GREETINGS = { wave: ["👋", "Wave"], bow: ["🙇", "Bow"], kiss: ["😘", "Blow a kiss"], dance: ["💃", "Little dance"] };
 export const GREETING_IDS = Object.keys(GREETINGS);
+
+/** Building colors for each base biome (the AI usually picks its own). */
+export function defaultPalette(key) {
+  return {
+    bayou: { walls: ["#f6e2b8", "#bfe0b0", "#f0bfa0"], roof: "#3f7a6a" }, desert: { walls: ["#f4dcb8", "#f0c89a", "#fff1dc"], roof: "#c8643f" },
+    suburb: { walls: ["#ffc8c8", "#c8e4ff", "#fff0a8"], roof: "#e8604f" }, spooky: { walls: ["#c9b8e8", "#a89ad0", "#e0d4f0"], roof: "#4a3a6a" },
+    harbor: { walls: ["#fff4e2", "#f6c27a", "#b8dcef"], roof: "#c8443a" }, sunset: { walls: ["#ffd0c0", "#ffe8b0", "#f8c8e0"], roof: "#e8784a" },
+    pines: { walls: ["#f0e4d4", "#d8c4a8", "#c8d8e0"], roof: "#4a6a8a" }, jungle: { walls: ["#f4ead0", "#d8f0c8", "#f8d8a8"], roof: "#2f8a5a" }
+  }[key] || { walls: ["#fff1dc", "#ffd6d6", "#d6ecff"], roof: "#e86a5a" };
+}
+
