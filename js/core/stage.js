@@ -9,13 +9,14 @@ export const stage = {
   renderer: null,
   view: null, // { scene, camera }
   init(canvas) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
+    // PS1 look: render at a tiny resolution and blow it up with hard pixels (see css: image-rendering)
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    this.renderer.setPixelRatio(1);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.BasicShadowMap;
     const resize = () => {
       const r = canvas.getBoundingClientRect();
-      this.renderer.setSize(r.width, r.height, false);
+      this.renderer.setSize(480, 270, false); // internal resolution; the canvas is stretched to fill the screen
       if (this.view) { this.view.camera.aspect = r.width / r.height; this.view.camera.updateProjectionMatrix(); }
     };
     window.addEventListener("resize", resize);

@@ -111,7 +111,8 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   const nor = geo.attributes.normal;
   // Ground a touch richer and darker than the buildings so the town always pops against it
   const richer = (hex, dl) => { const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl); return c.offsetHSL(0, 0.1, dl - Math.max(0, hsl.l - 0.5) * 0.7); };
-  const g1 = richer(biome.ground[0], -0.1), g2 = richer(biome.ground[1], -0.06);
+  // PS1 mood: colors pulled darker and a little desaturated
+  const g1 = richer(biome.ground[0], -0.16).offsetHSL(0, -0.12, 0), g2 = richer(biome.ground[1], -0.12).offsetHSL(0, -0.12, 0);
   const sand = new THREE.Color(0xe8d6a8).lerp(g1, 0.15), rockC = new THREE.Color(0xa49a8c), snow = new THREE.Color(0xf6f4ee), wet = g1.clone().multiplyScalar(0.7);
   const colors = new Float32Array(n * 3), c = new THREE.Color();
   for (let i = 0; i < n; i++) {
@@ -125,7 +126,7 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   const group = new THREE.Group();
-  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 }));
+  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
   ground.receiveShadow = true; group.add(ground);
 
   // Water: clear and bright, with a soft sheen from the low sun
@@ -147,28 +148,44 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
       const fl = flowerAt.get(k) || [];
       for (const n of fl) { flowers.setMatrixAt(n, new THREE.Matrix4().makeScale(0, 0, 0)); }
       if (fl.length) { flowers.instanceMatrix.needsUpdate = true; flowerAt.delete(k); }
-      return list.length;
+      return list.length + (api.clearTrees ? api.clearTrees(i, j) : 0);
     },
-    hasNature: (i, j) => (nature.get(i + "," + j) || []).length > 0,
+    hasNature: (i, j) => (nature.get(i + "," + j) || []).length > 0 || (api.hasTrees ? api.hasTrees(i, j) : false),
     isWater: (x, z) => heightAt(x, z) < 0.15,
     update(dt) { water.position.y = Math.sin(performance.now() / 1400) * 0.03; }
   };
 
-  // ----- Groves: trees grow in clusters outside the building ground, with open meadows between -----
+  // ----- Forests: thousands of low-poly trees, packed into dense woods (instanced, so it stays fast) -----
   const grove = makeNoise(rng);
-  const leaves = LEAVES[shape.tree] || LEAVES.round, leaf = new THREE.Color(leaves[0]).lerp(new THREE.Color(biome.ground[1]), 0.15).getHex();
-  const target = Math.round(170 * density);
-  let placed = 0;
-  for (let tries = 0; placed < target && tries < target * 12; tries++) {
-    const x = (rng() - 0.5) * size * 0.72, z = (rng() - 0.5) * size * 0.72, d = Math.hypot(x, z);
-    if (d < 7) continue; // a little open spot where you arrive
+  const leaves = LEAVES[shape.tree] || LEAVES.round;
+  const conifer = ["pine", "willow"].includes(shape.tree), spiky = shape.tree === "cactus";
+  const crownGeo = conifer ? new THREE.ConeGeometry(1, 2.6, 5) : spiky ? new THREE.CylinderGeometry(0.35, 0.4, 2.2, 5) : new THREE.IcosahedronGeometry(1.1, 0);
+  const N = Math.round((spiky ? 500 : 2600) * density);
+  const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.24, 1, 5), new THREE.MeshStandardMaterial({ color: 0x4a3828, roughness: 1, flatShading: true }), N);
+  const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }), N);
+  trunks.castShadow = crowns.castShadow = true; crowns.receiveShadow = true;
+  const treeAt = new Map(), tm = new THREE.Matrix4(), tq = new THREE.Quaternion(), tv = new THREE.Vector3(), ts = new THREE.Vector3(), tc = new THREE.Color();
+  let ti = 0;
+  for (let tries = 0; ti < N && tries < N * 6; tries++) {
+    const x = (rng() - 0.5) * size * 0.74, z = (rng() - 0.5) * size * 0.74, d = Math.hypot(x, z);
+    if (d < 6) continue; // a small clearing where you arrive
     const h = heightAt(x, z);
-    if (h < 0.5 || (shape.snow && h > shape.snow)) continue;
-    if (grove(x * 0.018, z * 0.018, 2) < 0.12 && rng() > 0.04) continue; // meadows stay open
-    const t = tree(shape.tree, rng, leaf, leaves[1]);
-    t.position.set(x, h - 0.1, z); t.rotation.y = rng() * 6.28;
-    addNature(t, x, z); placed++;
+    if (h < 0.4 || (shape.snow && h > shape.snow)) continue;
+    const dens = grove(x * 0.03, z * 0.03, 3);
+    if (dens < -0.15 && rng() > 0.03) continue; // most of the land is woods; a few glades
+    const sc = (0.8 + rng() * 0.9) * (spiky ? 1 : 1.25), trunkH = conifer ? 0.9 * sc : spiky ? 0.2 : 1.6 * sc;
+    tq.setFromEuler(new THREE.Euler((rng() - 0.5) * 0.12, rng() * 6.28, (rng() - 0.5) * 0.12));
+    tv.set(x, h + trunkH / 2 - 0.1, z); ts.set(sc, trunkH, sc); tm.compose(tv, tq, ts); trunks.setMatrixAt(ti, tm);
+    tv.set(x, h + trunkH + (conifer ? 1.2 : spiky ? 1 : 0.7) * sc - 0.1, z); ts.set(sc, sc * (conifer ? 1.2 : 1), sc); tm.compose(tv, tq, ts); crowns.setMatrixAt(ti, tm);
+    tc.set(leaves[rng() < 0.5 ? 0 : 1]).lerp(new THREE.Color(biome.ground[0]), 0.2).multiplyScalar(0.75 + rng() * 0.3); crowns.setColorAt(ti, tc);
+    const k = cellKey(x, z); if (!treeAt.has(k)) treeAt.set(k, []); treeAt.get(k).push(ti);
+    ti++;
   }
+  trunks.count = crowns.count = ti;
+  group.add(trunks, crowns);
+  api.clearTrees = (i, j) => { const list = treeAt.get(i + "," + j) || []; const z0 = new THREE.Matrix4().makeScale(0, 0, 0); for (const n of list) { trunks.setMatrixAt(n, z0); crowns.setMatrixAt(n, z0); } if (list.length) { trunks.instanceMatrix.needsUpdate = crowns.instanceMatrix.needsUpdate = true; treeAt.delete(i + "," + j); } return list.length; };
+  api.hasTrees = (i, j) => (treeAt.get(i + "," + j) || []).length > 0;
+
   // A few big rocks, and a scatter near the lake shores
   for (let i = 0; i < 30 * density + (shape.rocks || 0) * 20; i++) {
     const a = rng() * 6.28, r = 8 + rng() * half * 0.65, x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
@@ -235,6 +252,7 @@ export function gladeSky(scene, biome, { sunDir = new THREE.Vector3(-0.55, 0.72,
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
   Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 220 });
   scene.add(sun, sun.target);
-  scene.fog = new THREE.Fog(hor.clone().lerp(top, 0.25), 120, 340);
+  // Silent Hill fog: thick, close, and the color of the sky near the ground
+  scene.fog = new THREE.Fog(hor.clone().lerp(top, 0.25).lerp(new THREE.Color(0x8a8a90), 0.35), 18, 110);
   return { hemi, sun, dome };
 }
