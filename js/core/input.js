@@ -8,6 +8,7 @@ let serialAxes = { x: 0, y: 0, btn: false, live: false };
 let serialPort = null, serialWriter = null;
 let prevBtn = false, btnNow = false;
 let prevDir = { x: 0, y: 0 };
+let dirLatch = null, dirLatchSeen = false; // quick arrow taps between frames still count
 
 export const Input = {
   x: 0, y: 0,
@@ -17,12 +18,14 @@ export const Input = {
   pressed() { return btnNow && !prevBtn; },
   /** Joystick was just pushed in a direction this frame (for menus). Returns -1, 0 or 1 per axis. */
   tapped() {
+    if (dirLatch) return dirLatch;
     const tx = Input.x > 0.6 ? 1 : Input.x < -0.6 ? -1 : 0;
     const ty = Input.y > 0.6 ? 1 : Input.y < -0.6 ? -1 : 0;
     return { x: tx !== prevDir.x ? tx : 0, y: ty !== prevDir.y ? ty : 0 };
   },
   /** Call once per frame, before scenes update. */
   update() {
+    if (dirLatchSeen) { dirLatch = null; dirLatchSeen = false; } else if (dirLatch) dirLatchSeen = true;
     prevBtn = btnNow;
     prevDir = {
       x: this.x > 0.6 ? 1 : this.x < -0.6 ? -1 : 0,
@@ -66,6 +69,8 @@ window.addEventListener("keydown", e => {
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   keys.add(k);
   if ((e.key === " " || e.key === "Enter") && !e.repeat) tapLatch = true;
+  const dx = { ArrowLeft: -1, a: -1, ArrowRight: 1, d: 1 }[k] || 0, dy = { ArrowUp: -1, w: -1, ArrowDown: 1, s: 1 }[k] || 0;
+  if ((dx || dy) && !e.repeat) { dirLatch = { x: dx, y: dy }; dirLatchSeen = false; }
   if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
 });
 window.addEventListener("keyup", e => keys.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));

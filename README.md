@@ -1,12 +1,13 @@
 # Evol
 
-You start as a fish. What you do in the pond decides what you evolve into, and the summer you live after.
+You start as a fish. What you do in the pond decides what you evolve into, which tiny world you move to,
+and what its residents (and a very nosy doctor) figure out about you.
 
-Evol mixes three games: **Superhot** (time only moves when you move, a white world where only living
-things are red), **Boku no Natsuyasumi** (a slow, nostalgic summer in the countryside with a diary every night),
-and **Doki Doki Universe** (odd little questions that add up to a playful read on who you are).
-Every life is different, like a Minecraft seed: the pond is generated from a seed, and an AI turns how you
-played into a new creature, a village, its people and its questions.
+Evol mixes three inspirations: **Doki Doki Universe** (tiny planets full of residents with likes, dislikes and
+requests, summoned stickers, quiz asteroids and a personality doctor), **LittleBigPlanet** (a handmade craft-box
+look: felt, cardboard, stitched panels and a sticker menu), and the **"choose a world"** planets from the Sims
+world-select screen and TikTok planet edits. Every life is different, like a Minecraft seed: the pond is generated
+from a seed, and an AI turns how you played into a new creature, three worlds to choose from, and the residents of the one you pick.
 
 Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 
@@ -14,19 +15,26 @@ Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 
 | Control | Keyboard | Arduino controller |
 |---|---|---|
-| Move | Arrow keys or WASD | Joystick |
-| Bite, grab, talk, choose | Space or Enter | Press the joystick down (its button) |
+| Move, pick in menus | Arrow keys or WASD | Joystick |
+| Bite, interact, confirm | Space or Enter | Press the joystick down (its button) |
 
-1. **The pond.** You're a small fish. Time only moves when you move: stop, and the pond nearly freezes, so you can plan. Eat pondweed, bugs or minnows; pick things up; hide in reeds. Bite the pike from behind and it flees, head-on and it bites back. A heron can take your tail. Each seed also picks 4 random events: a frog, a turtle you can hide under, fish eggs and a crayfish raiding them, a kid's net, a baited hook (mash to escape), a fish tangled in fishing line you can free, or a rain shower full of bugs.
+1. **The pond (75 s).** You're a small fish. Eat pondweed, bugs or minnows; pick things up; hide in reeds. Bite the pike from behind and it flees, head-on and it bites back. A heron can take your tail. Each seed picks 4 random events: a frog, a turtle you can hide under, fish eggs and a crayfish raiding them, a kid's net, a baited hook (mash to escape), a fish tangled in fishing line you can free, or a rain shower full of bugs.
 2. **Evolving.** The game lists what you did, then the AI reveals what you became and why.
-3. **Summer (3 days).** A free-roam sandbox village. The sun only moves as you walk. Gather materials, catch critters, help villagers with what they need, build the village project, and answer odd questions from talking objects. Sleep at home to end the day.
-4. **Diary.** Every night you write a page: a photo of where you fell asleep, what happened, and a sticker naming who you were today.
-5. **The reading.** After day 3 you get an archetype and three observations that connect the pond, the village and your answers. Then live another life.
+3. **Choose a world.** Three tiny planets float in space (Bayou, Desert Mesa, Candy Suburb, Moonlit Hollow, Maple Harbor, Sunset Strip, Pine Peaks or Jungle Ruins), picked from how you lived. Your choice counts too.
+4. **The planet.** Walk all the way around a tiny planet; it turns under your feet. Walk up to a resident and press the button:
+   - **Talk:** first meeting reveals their request; after that they gossip about the neighbors ("never show Bo a rain cloud").
+   - **Greet:** wave, bow, blow a kiss or dance. Everyone has a favorite.
+   - **Sticker:** summon a sticker on the moment (puppy, ghost, cake, poop...). Loved ones win hearts; hated ones don't.
+   - **Pick up:** carry them. Throw them into the sky, or set them down next to someone to introduce them.
+   - **Card:** their identity card. Likes, dislikes and greeting start as ❔ and fill in as you learn.
+   Finish a request and they give you a present: new stickers. Two quiz moths float nearby with odd picture questions. Sleep in your tent when the sun runs out.
+5. **Diary.** A page with a photo of the day and a sticker naming who you were.
+6. **Dr. Wobble's reading.** An archetype, three observations, and the receipts: the exact moments the reading is based on. Then live another life.
 
-There's no single win. You win a life by surviving the pond and making a summer worth writing about.
+There's no single win. You win a life by surviving the pond and making friends (4+ hearts) and finishing requests on your planet.
 Lose conditions in the pond (bitten, hooked, netted, tail lost) don't end the game; they change what you become.
 
-`?quick` shortens the pond and days for demos. `?debug` exposes the state machine as `window.evol` for testing.
+`?quick` shortens the pond and the day for demos. `?debug` exposes the state machine as `window.evol` for testing.
 
 ## State machine
 
@@ -35,16 +43,17 @@ stateDiagram-v2
     [*] --> Title
     Title --> Pond: button
     Pond --> Evolving: life timer ends
-    Evolving --> Summer: life built, button
-    Summer --> Diary: sleep at home, or the sun sets
-    Diary --> Summer: next morning (days 1-2)
-    Diary --> Reading: after day 3
+    Evolving --> Choose: creature built, button
+    Choose --> Planet: pick a world (AI writes its residents)
+    Planet --> Diary: sleep in your tent, or the sun runs out
+    Diary --> Reading: turn the page
     Reading --> Pond: live another life (new seed)
     Reading --> Title: back to title
 ```
 
-Inside Summer, talking, questions, gifts and the sleep prompt are overlays, not separate states.
-Every frame: read input → update the scene (world time scaled by how much you move) → render 3D → draw overlay.
+Inside Planet, the interaction menu, greetings, stickers, identity cards, carrying, quizzes and the sleep prompt are
+overlay modes (walk, menu, greet, stickers, card, talk, carry, quiz, home), not separate states.
+Every frame: read input → update the scene → render 3D → draw the 2D overlay.
 
 ## Where the AI is
 
@@ -53,13 +62,14 @@ All prompts are in `js/ai/prompts.js`. The AI runs through Claude on claude.ai (
 
 | Moment | What the AI decides |
 |---|---|
-| Evolving | Creature body and name, why you became it, the village, its project, resources, critters, 4 villagers and what they want, 6 talking objects with Doki Doki style questions and how each answer scores personality |
-| Talking to villagers | What they say in character, noticing what you've done; your reply also scores personality |
-| Each night | The diary page and the day's sticker |
-| The end | Your archetype and three observations, never repeating past lives |
+| Evolving | Creature body, color and name, why you became it, and three worlds that fit different sides of how you lived |
+| Choosing a world | The residents: personalities, identity cards (likes, dislikes, greeting), requests, every line they say, and two quiz moths with picture questions that score personality |
+| Night | The diary page and the day's sticker |
+| The end | Dr. Wobble's archetype, three observations, the receipts, and a question, never repeating past lives |
 
-Personality is tracked on 7 hidden axes (curious, kind, bold, calm, social, playful, driven), fed by the pond,
-what you do in the village, and your answers.
+Gossip is generated by the game from the real identity cards, so it's always true. Personality is tracked on 7
+hidden axes (curious, kind, bold, calm, social, playful, driven), plus stats on how you treated people: cards read
+before acting, pranks with stickers you knew they hated, tosses, introductions, requests finished.
 
 ## Hardware (bonus)
 
@@ -75,18 +85,20 @@ js/main.js                 boot, scenes, game loop
 js/core/game.js            game state, personality axes, scene state machine
 js/core/stage.js           Three.js renderer, screen projection, snapshots
 js/core/input.js           keyboard, gamepad, Arduino (Web Serial)
-js/core/palette.js         colors and fonts (white world, red life, summer sky)
-js/core/draw.js            overlay UI: boxes, dialogue, choices, labels
-js/core/audio.js           synthesized cicadas, water and blips
+js/core/palette.js         colors and fonts (felt, cardboard, sticker colors)
+js/core/draw.js            overlay UI: stitched panels, stickers, dialogue, labels
+js/core/audio.js           synthesized water, blips and a music box per planet
 js/core/rng.js, store.js   seeded random, saved lives
 js/gfx/models.js           every low-poly model, built in code
-js/gfx/sky.js              summer sky, clouds, sun by time of day
+js/gfx/sky.js              sky for the pond and evolving scenes
+js/gfx/biomes.js           the 8 worlds, their props, stickers and greetings
+js/gfx/planet.js           tiny walkable planet, felt ground, world skies
 js/ai/claude.js            AI call with timeout, validation and fallback
 js/ai/prompts.js           every prompt
 js/life/schema.js          validates whatever the AI returns
 js/life/traits.js          pond actions -> sentences and personality
-js/life/fallback.js        offline life, chats, diary and reading
-js/scenes/*.js             title, pond, evolving, summer, diary, reading
+js/life/fallback.js        offline creature, worlds, residents, quizzes, diary, reading
+js/scenes/*.js             title, pond, evolving, choose, planet, diary, reading
 js/vendor/three.min.js     Three.js r128 (MIT)
 arduino/, bridge/          controller sketch and joystick bridge
 ```
@@ -98,13 +110,14 @@ arduino/, bridge/          controller sketch and joystick bridge
 - **Limitation:** 3D with shadows needs a reasonably modern laptop; very old machines will run slowly.
 - **Challenge:** making randomness feel earned. The AI only sees what you actually did, and the game shows you that list before the reveal.
 - **Challenge:** AI answers are unpredictable, so every answer goes through a validator that repairs or replaces anything broken.
-- **Challenge:** "time only moves when you move" had to work for the whole world at once, so every system updates with a scaled clock.
+- **Challenge:** walking on a sphere. The player never moves: the planet rotates under them, and residents wander in the planet's own coordinates.
+- **Challenge:** Doki Doki style insight without judging single actions. The reading looks for patterns across the pond, the planet and the quizzes, and shows its receipts.
 
 ## Resources and credits
 
 - Claude (Anthropic): in-game AI, and the coding assistant used to build the game
 - Three.js r128 (MIT license), WebGL, Web Serial API, Web Audio API
-- Fonts: DM Serif Display, Zen Kaku Gothic New, Klee One (Google Fonts)
+- Fonts: Fredoka, Patrick Hand (Google Fonts); emoji for stickers
 - Arduino IDE; ELEGOO Mega 2560 kit; Python pyserial and pynput for the bridge
-- Inspiration: Superhot, Boku no Natsuyasumi, Doki Doki Universe, Minecraft seeds
+- Inspiration: Doki Doki Universe, LittleBigPlanet, the Sims world select, TikTok "choose a planet" edits, Minecraft seeds
 - No outside art or audio: every model and sound is made in code

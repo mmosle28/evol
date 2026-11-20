@@ -1,86 +1,82 @@
 // Every prompt the game sends to Claude lives here. Each asks for JSON only, with allowed values spelled out.
-// The voice: Boku no Natsuyasumi (a quiet, nostalgic summer) + Doki Doki Universe (playful, slightly absurd
-// personality reads that catch you off guard instead of judging single actions).
+// The voice is Doki Doki Universe: playful, slightly absurd, kind, and a little too accurate about you.
 
-import { SHAPES, LIMBS, FEATURES, PROPS } from "../life/schema.js";
-import { QUIZ_KINDS } from "../gfx/models.js";
+import { SHAPES, LIMBS, FEATURES, COLORS, REQUESTS } from "../life/schema.js";
+import { BIOMES, BIOME_KEYS, STICKER_IDS, GREETING_IDS } from "../gfx/biomes.js";
 import { AXES } from "../core/game.js";
 
 const bodySpec = `{"shape": one of ${JSON.stringify(SHAPES)}, "eyes": 1-4, "limbs": 0-6, "limbType": one of ${JSON.stringify(LIMBS)}, "features": up to 4 of ${JSON.stringify(FEATURES)}}`;
-const axesSpec = `an object using only these keys: ${JSON.stringify(AXES)}, values -2 to 2, one or two keys`;
+const axesSpec = `object with one or two keys from ${JSON.stringify(AXES)}, values -2 to 2`;
+const VOICE = `Style: playful, warm, a little absurd, like Doki Doki Universe. Never moralize or judge. Plain words a college student would enjoy. No em dashes.`;
+const biomeList = BIOME_KEYS.map(k => `${k} (${BIOMES[k].label})`).join(", ");
 
-const VOICE = `Style rules: playful, warm, a little absurd, like Doki Doki Universe. Never moralize or judge. Never say "because you did X you are Y". Plain words a college student would enjoy. No em dashes.`;
-
-/** Evolution: pond behavior in, a creature and a summer village out. */
+/** Evolution: pond behavior in, a creature and three worlds to choose from out. */
 export function lifePrompt(traitLines, seed, pastNames) {
-  return `You are the evolution engine of Evol, a game where the player lived 75 seconds as a fish, then evolves and spends three summer days in a village, in the spirit of Boku no Natsuyasumi.
+  return `You are the evolution engine of Evol. The player just lived 75 seconds as a fish in a pond.
 
 What the fish did:
 ${traitLines.map(l => "- " + l).join("\n")}
 
-Seed for variety: ${seed}. Do not reuse these past names: ${pastNames.join(", ") || "none"}.
+Seed: ${seed}. Do not reuse: ${pastNames.join(", ") || "none"}.
 
-Invent what it evolves into and the summer village it lives in.
-- The body must come from specific pond actions (lost tail: "stumpTail" and it adapted; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up a stick or bottle cap: a tinkerer and a crafty village; glowing stone: mystical village; freed a fish or guarded eggs: gentle; stood still a lot: calm). Surprising and specific, earned like a Minecraft seed.
-- The village is a sleepy summer countryside place shaped by the creature: what it eats, how it moves.
-- 3 resources found on the ground, 2 small critters to catch (like bugs in Boku no Natsuyasumi), a village project the whole village is building.
-- 4 villagers with distinct personalities. Each wants some amount of one resource (index 0-2) and says why in one line.
-- 6 odd talking objects that each ask the player one Doki Doki Universe style question: everyday and slightly absurd, like "How do you usually eat watermelon?" or "A cloud looks exactly like you. What do you do?". Three short, funny answers each, every answer quietly scores personality, plus the object's one-line reaction to that answer.
+1. Invent what it evolves into. The body must come from specific pond actions (lost tail: "stumpTail"; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up junk: gears; glowing stone: glow; freed a fish or guarded eggs: frills). Surprising and earned, like a Minecraft seed.
+2. Offer three tiny planets it could move to, each a different biome from: ${biomeList}. Pick biomes that fit different sides of how it lived. Give each a playful name and a one-line pitch that teases the vibe.
 ${VOICE}
 
-Return JSON only:
-{"creature": {"name": short invented species name, "description": one sentence, "because": one sentence starting "Because you" that links two specific pond moments to the body, "body": ${bodySpec}},
- "world": {"name": short village name, "description": one sentence, "props": one of ${JSON.stringify(PROPS)}, "project": short name of the thing the village is building, "projectNeeds": 6-12},
- "resources": [3 short item names],
- "critters": [2 x {"name": short critter name}],
- "villagers": [4 x {"name": short, "role": short, "personality": one sentence, "body": ${bodySpec}, "wants": 0-2, "count": 1-4, "request": one sentence in their voice}],
- "quiz": [6 x {"kind": one of ${JSON.stringify(QUIZ_KINDS)}, "name": what it is, a few words, "question": under 18 words, "answers": [3 x {"text": under 8 words, "axes": ${axesSpec}, "reply": under 14 words}]}]}`;
+JSON only:
+{"creature": {"name": invented species name, "description": one sentence, "because": one sentence starting "Because you" linking two pond moments to the body, "body": ${bodySpec}, "color": one of ${JSON.stringify(COLORS)}},
+ "worlds": [3 x {"biome": key, "name": 1-3 words, "pitch": under 16 words}]}`;
 }
 
-/** Talking to a villager, in character. Their two replies quietly score personality too. */
-export function talkPrompt(life, v, recent, met) {
-  return `Game Evol, summer village ${life.world.name}. You are ${v.name}, the ${v.role}. Personality: ${v.personality}
-The player is a ${life.creature.name}. ${life.creature.because}
-What the player did recently: ${recent.slice(-5).join("; ") || "just arrived"}.
-${met ? "You've talked before; continue naturally." : "First meeting."} If it fits, mention you want ${v.count} ${life.resources[v.wants]}.
+/** The chosen planet, filled with Doki Doki Universe style characters and two quiz moths. */
+export function worldPrompt(life, world, traitLines) {
+  return `Game Evol. A ${life.creature.name} (${life.creature.description}) just moved to the tiny planet "${world.name}" (${BIOMES[world.biome].label}: ${world.pitch}).
+How it lived as a fish: ${traitLines.slice(0, 8).join("; ")}.
 
-Say one line in character (under 28 words) that notices something specific about the player and ends with a small question. Then two replies the player could pick (under 7 words), what you say back to each (under 20 words), and how each reply scores personality (${axesSpec}).
+Fill the planet like a Doki Doki Universe planet. Every resident has an identity card: what they like and dislike (from a fixed set of summonable stickers), how they like to be greeted, and one request.
+- 4 residents who fit this biome, each with a vivid personality and a small problem.
+- likes and dislikes: 2 each from ${JSON.stringify(STICKER_IDS)}. Make some funny contrasts (one resident adores ghosts, another is terrified of them).
+- greeting: one of ${JSON.stringify(GREETING_IDS)}.
+- request.type: one of ${JSON.stringify(REQUESTS)}. sticker = wants to be shown one of their likes (target = that sticker id); bring = wants to meet another resident, the player must carry them over (target = that resident's index 0-3); fly = wants to be thrown into the sky; greet = wants a proper greeting. Use at least three different types.
+- lines, all in their own voice: hello (first meeting, under 20 words), ask (their request, hinting at what they need without naming the sticker id, under 24 words), thanks (under 16 words), liked (reaction to a sticker they love, under 10 words), disliked (to one they hate, under 10 words), tossed (when picked up and thrown, under 10 words).
+- 2 quiz moths (tiny monks floating near the planet, like Doki Doki Universe asteroid quizzes). Each asks 3 picture questions: everyday and slightly absurd ("What are the rats doing in this picture?", "Without thinking, pick a picture", "Choose a caption"). Each question has a "pic" of 1 to 3 emoji, and 3 answers, each with its own emoji "pic", a short "text", an "axes" score (${axesSpec}) and the moth's one-line "reply".
 ${VOICE}
-Return JSON only: {"line": string, "a": string, "b": string, "replyA": string, "replyB": string, "axesA": object, "axesB": object}`;
+
+JSON only:
+{"name": "${world.name}", "description": one sentence,
+ "npcs": [4 x {"name": short, "role": short, "personality": one sentence, "body": ${bodySpec}, "color": one of ${JSON.stringify(COLORS)}, "greeting": string, "likes": [2], "dislikes": [2], "lovesFlying": boolean, "request": {"type": string, "target": string or number}, "lines": {"hello": s, "ask": s, "thanks": s, "liked": s, "disliked": s, "tossed": s}}],
+ "quiz": [2 x {"name": moth name, "questions": [3 x {"q": under 14 words, "pic": emoji, "answers": [3 x {"text": under 7 words, "pic": one emoji, "axes": object, "reply": under 14 words}]}]}]}`;
 }
 
-/** The nightly diary page (Boku no Natsuyasumi) with a Doki Doki sticker. */
-export function diaryPrompt(life, day, todayLog, answers, axes, history) {
-  const pastStickers = history.flatMap(r => (r.diary || []).map(d => d.sticker)).slice(-10);
-  return `Game Evol. Write tonight's diary page for a ${life.creature.name} spending summer in ${life.world.name}. Day ${day} of 3.
+/** Tonight's diary page, with a Doki Doki sticker. */
+export function diaryPrompt(life, todayLog, answers, axes) {
+  return `Game Evol. Write tonight's diary page for a ${life.creature.name} after its first day on the tiny planet ${life.world.name}.
 
 What happened today:
-${todayLog.map(l => "- " + l).join("\n") || "- not much, mostly walking around"}
-Odd questions answered today:
-${answers.map(a => `- ${a.who} asked "${a.question}" and they said "${a.answer}"`).join("\n") || "- none"}
-Personality scores so far: ${JSON.stringify(axes)}
+${todayLog.map(l => "- " + l).join("\n") || "- mostly wandered around the planet"}
+Odd questions answered: ${answers.map(a => `"${a.question}" -> "${a.answer}"`).join("; ") || "none"}
 
-Diary: first person, like a kid's summer diary in Boku no Natsuyasumi: simple, sincere, nostalgic, small sensory details (cicadas, heat, the sky). 3 to 5 short sentences about the real events above.
-Then a Doki Doki Universe "sticker": a funny archetype name for who they were today (2 to 4 words, like "The Watermelon Diplomat"), and one playful observation that connects two unrelated things they did into one surprising pattern. Not a moral judgment, not a summary. Avoid these past stickers: ${pastStickers.join(", ") || "none"}.
+Diary: first person, like a kid's diary: simple, sincere, small sensory details, 3 to 5 short sentences about the real events above, naming the residents.
+Then a Doki Doki Universe "sticker": a funny archetype for who they were today (2 to 4 words) and one playful observation that connects two unrelated things they did into a surprising pattern.
 ${VOICE}
-Return JSON only: {"entry": string, "sticker": string, "note": one sentence}`;
+JSON only: {"entry": string, "sticker": string, "note": one sentence}`;
 }
 
-/** The final reading after three days: who you are, Doki Doki style. Never repeats past lives. */
-export function readingPrompt(life, pondLines, log, answers, axes, history) {
+/** The final reading, Doki Doki style, with the "receipts" for how the doctor figured it out. */
+export function readingPrompt(life, pondLines, log, answers, stats, axes, history) {
   const past = history.map(r => r.reading && r.reading.archetype).filter(Boolean).slice(-8);
-  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, and spent three summer days in ${life.world.name}. Give them a personality reading in the style of Doki Doki Universe: playful, specific, slightly absurd, kind, and a little too accurate.
+  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, chose the planet ${life.world.name} (${BIOMES[life.world.biome].label}) and spent a day with its residents. You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
 
 As a fish:
 ${pondLines.map(l => "- " + l).join("\n")}
-In the village:
-${log.map(l => `- Day ${l.day}: ${l.text}`).join("\n") || "- not much"}
-Odd questions they answered:
-${answers.map(a => `- "${a.question}" -> "${a.answer}"`).join("\n") || "- none"}
-Personality scores: ${JSON.stringify(axes)}
-Archetypes given in past lives (do not repeat; find something new): ${past.join(", ") || "none"}
+On the planet:
+${log.map(l => "- " + l.text).join("\n") || "- not much"}
+How they treated people: ${JSON.stringify(stats)}
+Quiz answers: ${answers.map(a => `"${a.question}" -> "${a.answer}"`).join("; ") || "none"}
+Scores: ${JSON.stringify(axes)}
+Past archetypes (find something new): ${past.join(", ") || "none"}
 
-Write: an archetype name (2 to 5 words, funny and memorable), three short observations that each connect specific things they did (one from the pond, one from the village, one from a quiz answer) into a pattern they might not have noticed, and one open question to think about. Never diagnose, never therapy-speak.
+Write: an archetype (2 to 5 words, funny and memorable), three observations that each connect specific things they did into a pattern they might not have noticed (at least one about how they treated residents: reading cards first or winging it, pranking with stickers they knew were hated, tossing people, finishing requests), three short "receipts" (the exact moments you based this on, each under 14 words), and one open question to think about. Never diagnose, never therapy-speak.
 ${VOICE}
-Return JSON only: {"archetype": string, "lines": [3 strings, each under 30 words], "question": string}`;
+JSON only: {"archetype": string, "lines": [3 strings under 30 words], "receipts": [3 strings], "question": string}`;
 }

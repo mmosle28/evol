@@ -1,11 +1,11 @@
-// Evolving: the pond recap (what you did) appears while the AI builds your new life, then the cocoon
-// breaks and your creature is revealed on a white plinth under the summer sky.
+// Evolving: the pond recap (what you did) appears while the AI builds your new life, then the felt cocoon
+// pops and your creature is revealed on a cardboard plinth. Next: choose a world.
 
 import { Input } from "../core/input.js";
 import { go, game, score } from "../core/game.js";
 import { stage, makeCamera } from "../core/stage.js";
-import { W, H, font, wrapText, hint, clamp, easeOut } from "../core/draw.js";
-import { UI, FONT, PAL } from "../core/palette.js";
+import { W, H, font, wrapText, hint, clamp, easeOut, box } from "../core/draw.js";
+import { UI, FONT, PAL, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
 import { makeSky } from "../gfx/sky.js";
 import * as M from "../gfx/models.js";
@@ -25,7 +25,7 @@ function build() {
   sky.setTime(0.55, { x: 0, z: 0 });
   scene.add(M.ground(260));
   const plinth = new THREE.Mesh(new THREE.CylinderGeometry(6, 6.5, 1.2, 8), M.mat(PAL.stone)); plinth.position.y = 0.6; plinth.receiveShadow = true; plinth.castShadow = true; scene.add(plinth);
-  cocoon = new THREE.Mesh(new THREE.IcosahedronGeometry(2.6, 1), M.mat(PAL.white)); cocoon.scale.y = 1.4; cocoon.position.y = 5; cocoon.castShadow = true; scene.add(cocoon);
+  cocoon = new THREE.Mesh(new THREE.IcosahedronGeometry(2.6, 1), M.mat(0xffe08a)); cocoon.scale.y = 1.4; cocoon.position.y = 5; cocoon.castShadow = true; scene.add(cocoon);
   shards = [];
   const camera = makeCamera(40);
   camera.position.set(0, 9, 22); camera.lookAt(0, 4.5, 0);
@@ -54,14 +54,14 @@ export const evolvingScene = {
       critter.scale.setScalar(Math.min(1.6, easeOut(clamp(k / 0.8, 0, 1)) * 1.6));
       critter.rotation.y += dt * 0.7;
       M.animateCreature(critter, t, false);
-      if (k > 1.6 && Input.pressed()) go("summer", { first: true });
+      if (k > 1.6 && Input.pressed()) go("choose");
     }
     view.camera.position.x = Math.sin(t * 0.15) * 4;
     view.camera.lookAt(0, 4.5, 0);
   },
   draw(g) {
     if (!revealAt) {
-      g.fillStyle = "rgba(247,246,242,0.82)"; g.fillRect(40, 50, 640, 90 + lines.length * 34);
+      box(g, 40, 50, 640, 90 + lines.length * 34);
       g.textAlign = "left"; g.fillStyle = UI.red; g.font = font(40, 400, FONT.title);
       g.fillText("What you did as a fish", 70, 105);
       lines.forEach((l, i) => {
@@ -76,31 +76,32 @@ export const evolvingScene = {
     }
     const life = game.life, k = clamp((t - revealAt - 0.4) / 0.8, 0, 1);
     g.globalAlpha = k;
-    g.fillStyle = "rgba(247,246,242,0.88)"; g.fillRect(40, 70, 560, 520);
+    box(g, 40, 70, 560, 520);
     g.textAlign = "left"; g.fillStyle = UI.ink; g.font = font(20, 900); g.fillText("YOU EVOLVED INTO", 70, 120);
-    g.fillStyle = UI.red; g.font = font(76, 400, FONT.title); g.fillText(life.creature.name, 66, 200);
+    g.fillStyle = UI.red; g.font = font(64, 700, FONT.title); g.fillText(life.creature.name, 66, 195);
     g.fillStyle = UI.ink; g.font = font(24, 500);
     let y = wrapText(g, life.creature.description, 70, 250, 500, 34);
     g.fillStyle = UI.red; g.font = font(22, 900);
     y = wrapText(g, life.creature.because, 70, y + 12, 500, 32);
     g.fillStyle = UI.muted; g.font = font(21, 500);
-    wrapText(g, `Your summer begins in ${life.world.name}. ${life.world.description}`, 70, y + 16, 500, 30);
+    wrapText(g, `Three tiny worlds want a ${life.creature.name}. Time to pick one.`, 70, y + 16, 500, 30);
     g.globalAlpha = 1;
     if (!fromAI) { g.fillStyle = UI.muted; g.font = font(16, 500); g.textAlign = "left"; g.fillText("AI unavailable: built offline from your traits", 30, H - 26); }
-    if (t - revealAt > 1.6) hint(g, "Press the button to start your summer");
+    if (t - revealAt > 1.6) hint(g, "Press the button to choose a world");
   }
 };
 
+const rngPick = a => a[Math.floor(Math.random() * a.length)];
 function reveal() {
   revealAt = t; game.life = result; blip("get"); Input.signal("b");
   cocoon.visible = false;
   for (let i = 0; i < 14; i++) {
-    const s = new THREE.Mesh(new THREE.TetrahedronGeometry(0.6 + Math.random() * 0.5, 0), M.mat(PAL.white));
+    const s = new THREE.Mesh(new THREE.TetrahedronGeometry(0.6 + Math.random() * 0.5, 0), M.mat(rngPick([0xffe08a, 0xff9ec4, 0x9ad8ff, 0xb8f0a0])));
     s.position.copy(cocoon.position);
     s.userData.v = new THREE.Vector3((Math.random() - 0.5) * 18, 8 + Math.random() * 8, (Math.random() - 0.5) * 18);
     s.castShadow = true; view.scene.add(s); shards.push(s);
   }
-  critter = M.creature(game.life.creature.body);
+  critter = M.creature(game.life.creature.body, { color: BODY_COLORS[game.life.creature.color], accent: new THREE.Color(BODY_COLORS[game.life.creature.color]).multiplyScalar(0.7).getHex() });
   critter.position.y = 1.2; critter.scale.setScalar(0.01);
   view.scene.add(critter);
 }

@@ -8,7 +8,8 @@ import { startAudio } from "./core/audio.js";
 import { titleScene } from "./scenes/title.js";
 import { pondScene } from "./scenes/pond.js";
 import { evolvingScene } from "./scenes/evolving.js";
-import { summerScene } from "./scenes/summer.js";
+import { chooseScene } from "./scenes/choose.js";
+import { planetScene } from "./scenes/planet.js";
 import { diaryScene } from "./scenes/diary.js";
 import { readingScene } from "./scenes/reading.js";
 
@@ -28,7 +29,8 @@ btn.addEventListener("click", async () => {
 register("title", titleScene);
 register("pond", pondScene);
 register("evolving", evolvingScene);
-register("summer", summerScene);
+register("choose", chooseScene);
+register("planet", planetScene);
 register("diary", diaryScene);
 register("reading", readingScene);
 
@@ -36,7 +38,7 @@ newRun();
 go("title");
 
 // ?debug exposes the state machine for testing scenes directly.
-if (new URLSearchParams(location.search).has("debug")) window.evol = { go, game };
+if (new URLSearchParams(location.search).has("debug")) window.evol = { go, game, scene: sceneName };
 
 let last = performance.now();
 function frame(now) {

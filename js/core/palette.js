@@ -1,39 +1,47 @@
-// The look of Evol in one place: a white, low-poly world (Superhot) where only living things are red,
-// under a Japanese summer sky (Boku no Natsuyasumi).
+// The look of Evol in one place: bright, handmade, low-poly. Felt, cardboard and sticker colors
+// (LittleBigPlanet's craft box) on tiny colorful planets (Doki Doki Universe, "choose a world" art).
 
 export const PAL = {
-  // World
-  white: 0xeceae4,
-  stone: 0xcfccc4,
-  shade: 0xa9a7a0,
-  ink: 0x1b1b1d,
-  water: 0xcfe6ee,
-  waterDeep: 0x9cc7d6,
-  // Life (only living things are red)
-  red: 0xd01426,
-  redDark: 0x9e0f1c,
-  redLight: 0xf04a4f,
-  // Sky
-  skyTop: 0x4f9fe0,
-  skyHorizon: 0xd9eef8,
+  // Craft materials
+  white: 0xfff1dc,     // cream felt
+  stone: 0xd9ab78,     // cardboard
+  shade: 0xb98a5a,
+  ink: 0x2b2340,
+  grass: 0x7cc45a,
+  water: 0x5fd0d8,
+  waterDeep: 0x2a8fb0,
+  // You (the fish, then the creature) start out warm orange
+  red: 0xff6b3d,
+  redDark: 0xd8492a,
+  redLight: 0xffb35c,
+  // Default sky
+  skyTop: 0x4fa3ff,
+  skyHorizon: 0xffe3c4,
   sun: 0xfff2d6
 };
 
+// Colors the AI can pick for your evolved body
+export const BODY_COLORS = { coral: 0xff6b5b, tangerine: 0xff9a3d, lemon: 0xffd84a, mint: 0x5fd6a4, teal: 0x2fb8b0, sky: 0x5aa8ff, grape: 0x9a6bff, bubblegum: 0xff7ec8, moss: 0x7dbb4a, plum: 0x8a3f7a };
+
 // 2D overlay colors (CSS strings)
 export const UI = {
-  ink: "#1b1b1d",
-  paper: "#f7f6f2",
-  red: "#c8102e",
-  redSoft: "rgba(200,16,46,0.12)",
-  muted: "#6b6a66",
+  ink: "#2b2340",
+  paper: "#fff6e6",
+  red: "#ff5a3c",
+  redSoft: "rgba(255,90,60,0.14)",
+  muted: "#7a6f86",
   white: "#ffffff",
-  sky: "#4f9fe0",
-  good: "#1f8a5a",
-  shadow: "rgba(20,20,22,0.18)"
+  sky: "#4fa3ff",
+  good: "#2fa86a",
+  card: "#e9c08e",
+  cardDark: "#b8885a",
+  pink: "#ff7ec8",
+  yellow: "#ffd84a",
+  shadow: "rgba(30,20,50,0.25)"
 };
 
 export const FONT = {
-  title: '"DM Serif Display", Georgia, serif',
-  ui: '"Zen Kaku Gothic New", "Hiragino Sans", system-ui, sans-serif',
-  hand: '"Klee One", "Zen Kaku Gothic New", cursive'
+  title: '"Fredoka", "Baloo 2", system-ui, sans-serif',
+  ui: '"Fredoka", "Nunito", system-ui, sans-serif',
+  hand: '"Patrick Hand", "Comic Neue", cursive'
 };

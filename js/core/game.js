@@ -1,13 +1,13 @@
 // Shared game state and the scene state machine.
 //
-// States: title -> pond -> evolving -> summer (sandbox, 3 days) -> diary (each night) -> summer ...
-//         after the last diary page -> reading (who you are) -> pond (new life) or title
-// Talking, quiz questions and giving gifts are overlays inside the summer scene, not separate states.
+// States: title -> pond -> evolving -> choose (pick a planet) -> planet (sandbox day) -> diary -> reading
+//         -> pond (new life) or title. Talking, greeting, stickers, identity cards, carrying and quizzes
+//         are overlay modes inside the planet scene, not separate states.
 
 import { newSeed } from "./rng.js";
 import { loadHistory } from "./store.js";
 
-export const DAYS = 3;
+export const DAYS = 1;
 
 /** Personality axes the game quietly scores, Doki Doki style. */
 export const AXES = ["curious", "kind", "bold", "calm", "social", "playful", "driven"];
@@ -26,7 +26,7 @@ export const game = {
 };
 
 export function newRun(seed = newSeed()) {
-  Object.assign(game, { runId: "life-" + Date.now().toString(36), seed, traits: null, life: null, day: 1, log: [], answers: [], diary: [], bag: {}, history: loadHistory() });
+  Object.assign(game, { runId: "life-" + Date.now().toString(36), seed, traits: null, life: null, day: 1, log: [], answers: [], diary: [], bag: {}, history: loadHistory(), world: null, choice: null, stats: null, stickers: [] });
   game.axes = Object.fromEntries(AXES.map(a => [a, 0]));
 }
 

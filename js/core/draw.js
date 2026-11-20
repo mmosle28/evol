@@ -37,11 +37,24 @@ export function rect(g, x, y, w, h, r = 0) {
   g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
 
-/** A clean white box with a hard red edge, the game's panel style. */
-export function box(g, x, y, w, h) {
-  g.fillStyle = UI.shadow; g.fillRect(x + 6, y + 6, w, h);
-  g.fillStyle = UI.paper; g.fillRect(x, y, w, h);
-  g.strokeStyle = UI.ink; g.lineWidth = 2; g.strokeRect(x, y, w, h);
+/** A felt/cardboard panel with a stitched edge (LittleBigPlanet craft style). */
+export function box(g, x, y, w, h, fill = UI.paper) {
+  g.fillStyle = UI.shadow; rect(g, x + 5, y + 7, w, h, 22); g.fill();
+  g.fillStyle = fill; rect(g, x, y, w, h, 22); g.fill();
+  g.save(); g.setLineDash([9, 7]); g.strokeStyle = "rgba(43,35,64,0.35)"; g.lineWidth = 2.5;
+  rect(g, x + 9, y + 9, w - 18, h - 18, 15); g.stroke(); g.restore();
+}
+
+/** A sticker: white die-cut border, slight tilt, drop shadow. Draws an emoji or short text. */
+export function sticker(g, x, y, size, glyph, { tilt = 0, bg = "#ffffff", ring = null } = {}) {
+  g.save(); g.translate(x, y); g.rotate(tilt);
+  g.fillStyle = UI.shadow; g.beginPath(); g.arc(3, 5, size * 0.56, 0, Math.PI * 2); g.fill();
+  g.fillStyle = bg; g.beginPath(); g.arc(0, 0, size * 0.56, 0, Math.PI * 2); g.fill();
+  if (ring) { g.strokeStyle = ring; g.lineWidth = 5; g.stroke(); }
+  const count = Math.max(1, [...glyph].filter(c => c.codePointAt(0) > 0x2100 && c !== "\uFE0F" && c !== "\u200D").length);
+  g.textAlign = "center"; g.textBaseline = "middle"; g.font = `${Math.round(size * 0.62 / Math.max(1, count * 0.62))}px "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif`;
+  g.fillStyle = UI.ink; g.fillText(glyph, 0, size * 0.04);
+  g.restore(); g.textBaseline = "alphabetic";
 }
 
 /** Dialogue box along the bottom with a red name tag. */
@@ -51,7 +64,7 @@ export function dialogue(g, name, text, opts = {}) {
   if (name) {
     g.font = font(22, 900);
     const nw = g.measureText(name).width + 36;
-    g.fillStyle = UI.red; g.fillRect(x + 24, y - 20, nw, 40);
+    g.fillStyle = opts.tagColor || UI.red; rect(g, x + 24, y - 20, nw, 40, 20); g.fill();
     g.fillStyle = UI.white; g.textAlign = "left"; g.fillText(name, x + 42, y + 8);
   }
   g.fillStyle = UI.ink; g.font = font(opts.size || 27, 500);

@@ -1,4 +1,4 @@
-// The diary: each night you write a page (Boku no Natsuyasumi), with a photo of where you fell asleep
+// The diary: at night you write a page, with a photo of where you fell asleep taped in
 // and a Doki Doki sticker naming who you were today.
 
 import { Input } from "../core/input.js";
@@ -22,21 +22,21 @@ export const diaryScene = {
     ambience("quiet");
     const todays = game.log.filter(l => l.day === game.day).map(l => l.text);
     const answers = game.answers.filter(a => a.day === game.day);
-    askJSON(diaryPrompt(game.life, game.day, todays, answers, game.axes, game.history), {
+    askJSON(diaryPrompt(game.life, todays, answers, game.axes), {
       validate: d => { if (typeof d.entry !== "string" || typeof d.sticker !== "string") throw new Error("bad"); return { entry: d.entry.slice(0, 700), sticker: d.sticker.slice(0, 40), note: String(d.note || "").slice(0, 200) }; },
-      fallback: () => fallbackDiary(game.day, game.log)
+      fallback: () => fallbackDiary(game.log.filter(l => l.day === game.day))
     }).then(r => { page = r.value; game.diary.push({ day: game.day, ...page }); blip("page"); t = 0; });
   },
   update(dt) {
     t += dt;
     if (page && t > 1 && Input.pressed()) {
-      if (game.day < DAYS) { game.day++; go("summer", { newDay: true }); }
+      if (game.day < DAYS) { game.day++; go("planet", { world: game.world }); }
       else go("reading");
     }
   },
   draw(g) {
     // Desk and an open notebook
-    g.fillStyle = "#e9e4d8"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#d9ab78"; g.fillRect(0, 0, W, H);
     g.fillStyle = "#fbfaf5"; g.fillRect(90, 50, 540, 620); g.fillRect(650, 50, 540, 620);
     g.strokeStyle = "#d9d3c4"; g.lineWidth = 1;
     for (let y = 150; y < 650; y += 40) { g.beginPath(); g.moveTo(110, y); g.lineTo(610, y); g.moveTo(670, y); g.lineTo(1170, y); g.stroke(); }
@@ -44,7 +44,7 @@ export const diaryScene = {
     g.fillStyle = UI.red; g.fillRect(116, 50, 3, 620);
 
     g.fillStyle = UI.ink; g.textAlign = "left"; g.font = font(40, 600, FONT.hand);
-    g.fillText(`Summer, day ${game.day}`, 130, 115);
+    g.fillText(`Day one on ${game.life.world.name}`, 130, 115);
 
     // Photo of the day, taped on
     if (img && img.complete && img.naturalWidth) {

@@ -1,4 +1,4 @@
-// Low-poly models built from code: no outside art. Flat shading gives the faceted Superhot look.
+// Low-poly models built from code: no outside art. Flat shading gives a faceted, handmade look.
 // Everything alive is red; everything else is white or stone.
 
 import { PAL } from "../core/palette.js";
@@ -92,7 +92,7 @@ export function eggs() {
 export function weed() {
   const g = new THREE.Group();
   for (let i = 0; i < 4; i++) {
-    const b = mesh(new THREE.ConeGeometry(0.25, 3 + i * 0.4, 3), mat(0xe9f1ec));
+    const b = mesh(new THREE.ConeGeometry(0.25, 3 + i * 0.4, 3), mat(0x5fcf6a));
     b.position.set((i - 1.5) * 0.4, 1.5, (i % 2) * 0.3);
     b.rotation.z = (i - 1.5) * 0.12;
     g.add(b);
@@ -104,7 +104,7 @@ export function reeds() {
   const g = new THREE.Group();
   for (let i = 0; i < 16; i++) {
     const a = i / 16 * Math.PI * 2, r = 1 + (i % 4) * 1.1;
-    const b = mesh(new THREE.CylinderGeometry(0.08, 0.12, 6 + (i % 3), 4), mat(PAL.stone));
+    const b = mesh(new THREE.CylinderGeometry(0.08, 0.12, 6 + (i % 3), 4), mat(0x9a8a4a));
     b.position.set(Math.cos(a) * r, 3, Math.sin(a) * r);
     b.rotation.z = Math.sin(i) * 0.1;
     g.add(b);
@@ -113,12 +113,12 @@ export function reeds() {
 }
 
 export function lilypad(r = 1.6) {
-  const p = mesh(new THREE.CylinderGeometry(r, r, 0.12, 9, 1, false, 0.4, Math.PI * 2 - 0.5), mat(0xf0f2ee));
+  const p = mesh(new THREE.CylinderGeometry(r, r, 0.12, 9, 1, false, 0.4, Math.PI * 2 - 0.5), mat(0x7ad35a));
   return p;
 }
 
 export function rock(s = 1) {
-  const r = mesh(new THREE.DodecahedronGeometry(s, 0), mat(PAL.stone));
+  const r = mesh(new THREE.DodecahedronGeometry(s, 0), mat(0xa89cb8));
   r.scale.y = 0.6;
   return r;
 }
@@ -303,9 +303,9 @@ export function quizObject(kind) {
   return g;
 }
 
-/** Ground disc with a slight color step, the white "summer town" floor. */
-export function ground(size = 220) {
-  const g = mesh(new THREE.CircleGeometry(size, 48), new THREE.MeshStandardMaterial({ color: PAL.white, roughness: 1 }), false);
+/** Flat grass floor. */
+export function ground(size = 220, color = PAL.grass) {
+  const g = mesh(new THREE.CircleGeometry(size, 48), new THREE.MeshStandardMaterial({ color, roughness: 1 }), false);
   g.rotation.x = -Math.PI / 2;
   return g;
 }

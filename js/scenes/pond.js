@@ -1,5 +1,4 @@
-// The pond: one short life as a fish. Time only moves when you move (Superhot): stop, and the pond
-// almost freezes, so you can plan. A seed lays out the pond and picks which events happen this life.
+// The pond: one short life as a fish, in real time. A seed lays out the pond and picks which events happen this life.
 // The game quietly records what you do; those traits are all the AI gets when deciding what you become.
 
 import { Input } from "../core/input.js";
@@ -62,11 +61,11 @@ function build() {
   root = new THREE.Group(); scene.add(root);
 
   // Pond basin: pale floor, a darker deep middle, stone rim, and a glassy surface
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(PX * 2 + 20, PZ * 2 + 20), new THREE.MeshStandardMaterial({ color: 0xc9dde0, roughness: 1 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(PX * 2 + 20, PZ * 2 + 20), new THREE.MeshStandardMaterial({ color: 0x3fb8a8, roughness: 1, flatShading: true }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; root.add(floor);
-  const deep = new THREE.Mesh(new THREE.CircleGeometry(DEEP_R, 32), new THREE.MeshStandardMaterial({ color: 0x9cbcc6, roughness: 1 }));
+  const deep = new THREE.Mesh(new THREE.CircleGeometry(DEEP_R, 32), new THREE.MeshStandardMaterial({ color: 0x1f7f9a, roughness: 1 }));
   deep.rotation.x = -Math.PI / 2; deep.scale.y = 1 / 1.4; deep.position.y = 0.02; deep.receiveShadow = true; root.add(deep);
-  const surface = new THREE.Mesh(new THREE.PlaneGeometry(PX * 2 + 4, PZ * 2 + 4), new THREE.MeshStandardMaterial({ color: 0xbfe0ec, transparent: true, opacity: 0.12, roughness: 0.1, metalness: 0.2, depthWrite: false }));
+  const surface = new THREE.Mesh(new THREE.PlaneGeometry(PX * 2 + 4, PZ * 2 + 4), new THREE.MeshStandardMaterial({ color: 0x7fe0ff, transparent: true, opacity: 0.15, roughness: 0.1, metalness: 0.2, depthWrite: false }));
   surface.rotation.x = -Math.PI / 2; surface.position.y = 6; root.add(surface);
   for (let i = 0; i < 70; i++) {
     const a = i / 70 * Math.PI * 2;
@@ -78,7 +77,7 @@ function build() {
   // The world around the pond (seen at the edges)
   const landShape = new THREE.Shape(); landShape.moveTo(-320, -320); landShape.lineTo(320, -320); landShape.lineTo(320, 320); landShape.lineTo(-320, 320); landShape.lineTo(-320, -320);
   const holePath = new THREE.Path(); holePath.absellipse(0, 0, PX + 3, PZ + 3, 0, Math.PI * 2, true); landShape.holes.push(holePath);
-  const land = new THREE.Mesh(new THREE.ShapeGeometry(landShape, 48), new THREE.MeshStandardMaterial({ color: PAL.white, roughness: 1 }));
+  const land = new THREE.Mesh(new THREE.ShapeGeometry(landShape, 48), new THREE.MeshStandardMaterial({ color: PAL.grass, roughness: 1, flatShading: true }));
   land.rotation.x = -Math.PI / 2; land.position.y = 6.2; land.receiveShadow = true; root.add(land);
   for (let i = 0; i < 10; i++) { const tt = M.tree(rng); tt.scale.setScalar(2.4); const a = rng() * Math.PI * 2; place(tt, Math.cos(a) * 95, 6, Math.sin(a) * 80); }
 
@@ -96,10 +95,10 @@ function build() {
 
   // A school of minnows
   school = { x: rng.range(-30, 30), z: rng.range(-20, 20), vx: 7, fish: [] };
-  for (let i = 0; i < 7; i++) { const m = M.fish({ scale: 0.45, color: PAL.redLight }); root.add(m); school.fish.push({ obj: m, ox: rng.range(-5, 5), oz: rng.range(-3, 3), alive: true }); }
+  for (let i = 0; i < 7; i++) { const m = M.fish({ scale: 0.45, color: 0x9fd6e8 }); root.add(m); school.fish.push({ obj: m, ox: rng.range(-5, 5), oz: rng.range(-3, 3), alive: true }); }
 
   // The pike
-  pike = { obj: M.fish({ scale: 2.8, color: PAL.redDark }), x: rng.pick([-45, 45]), z: rng.range(-20, 20), vx: 0, vz: 0, mode: "patrol", target: randPos(), cool: 0, flee: 0 };
+  pike = { obj: M.fish({ scale: 2.8, color: 0x5d7d3a }), x: rng.pick([-45, 45]), z: rng.range(-20, 20), vx: 0, vz: 0, mode: "patrol", target: randPos(), cool: 0, flee: 0 };
   root.add(pike.obj);
 
   // The heron's shadow
@@ -122,7 +121,7 @@ function build() {
   if (present.includes("net")) ev.net = { obj: M.net(), next: rng.range(18, 28), phase: "idle", t: 0, x: 0, z: 0 };
   if (present.includes("net")) { ev.net.obj.visible = false; root.add(ev.net.obj); }
   if (present.includes("hook")) { const p = randPos(10); ev.hook = { obj: M.hook(), x: p.x, z: p.z, hooked: false, pull: 0, mash: 0, done: false }; place(ev.hook.obj, p.x, 3.2, p.z); }
-  if (present.includes("trapped")) { const p = randPos(12); ev.trapped = { obj: M.fish({ scale: 0.9, color: PAL.redLight }), x: p.x, z: p.z, freed: false, seen: 0, line: new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 3, 10), M.mat(0xffffff)) }; place(ev.trapped.obj, p.x, 1.2, p.z); ev.trapped.line.rotation.x = Math.PI / 2; place(ev.trapped.line, p.x, 1.2, p.z); }
+  if (present.includes("trapped")) { const p = randPos(12); ev.trapped = { obj: M.fish({ scale: 0.9, color: 0xffd84a }), x: p.x, z: p.z, freed: false, seen: 0, line: new THREE.Mesh(new THREE.TorusGeometry(1.4, 0.05, 3, 10), M.mat(0xffffff)) }; place(ev.trapped.obj, p.x, 1.2, p.z); ev.trapped.line.rotation.x = Math.PI / 2; place(ev.trapped.line, p.x, 1.2, p.z); }
   if (present.includes("rain")) ev.rain = { at: rng.range(LIFE * 0.3, LIFE * 0.6), left: 12, on: false, drops: null };
 
   // The player
@@ -155,10 +154,8 @@ export const pondScene = {
     if (phase === "intro") { follow(rdt, true); if (real > 0.4 && Input.pressed()) phase = "live"; return; }
     if (phase === "end") { endT += rdt; follow(rdt); if (endT > 1 && Input.pressed()) { game.traits = tr; go("evolving"); } return; }
 
-    // ----- Superhot time: the pond moves at the speed you move -----
     const push = Math.hypot(Input.x, Input.y);
-    const ts = fish.lunge > 0 || (ev.hook && ev.hook.hooked) ? 1 : 0.06 + 0.94 * clamp(push * 1.15, 0, 1);
-    const dt = rdt * ts;
+    const dt = rdt;
     if (push < 0.15) tr.stillTime += rdt;
     t += dt;
     for (const l of log) l.age += rdt;
@@ -197,7 +194,6 @@ export const pondScene = {
     g.globalAlpha = 1;
     if (phase === "live") {
       const still = Math.hypot(Input.x, Input.y) < 0.15 && fish.lunge <= 0;
-      if (still) { g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(0, 0, W, H); g.fillStyle = UI.ink; g.font = font(20, 900); g.textAlign = "center"; g.fillText("TIME IS STILL", W / 2, 60); }
       if (ev.hook && ev.hook.hooked) { g.fillStyle = UI.red; g.font = font(44, 900, FONT.title); g.textAlign = "center"; g.fillText("Hooked! Mash the button!", W / 2, 160); }
       hint(g, "Move: joystick   Bite / grab: button");
     }
@@ -206,7 +202,7 @@ export const pondScene = {
       g.fillStyle = UI.red; g.font = font(64, 400, FONT.title); g.textAlign = "center";
       g.fillText("You are a small fish", W / 2, H / 2 - 100);
       g.fillStyle = UI.ink; g.font = font(24, 500);
-      wrapText(g, "Time only moves when you move. Stop, and the pond holds its breath. Eat, explore, pick things up, fight back or hide. Bite a pike from behind and it might flee. There's no right way to live: whatever you do shapes what you become.", W / 2, H / 2 - 40, 680, 34, "center");
+      wrapText(g, "One short life in a pond, and the pond has plans for you. Eat, explore, pick things up, fight back or hide. Bite a pike from behind and it might flee. There's no right way to live: whatever you do shapes what you become.", W / 2, H / 2 - 40, 680, 34, "center");
       g.fillStyle = UI.red; g.font = font(22, 900);
       g.fillText("PRESS THE BUTTON TO START", W / 2, H / 2 + 150);
     }
