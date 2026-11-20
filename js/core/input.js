@@ -49,8 +49,7 @@ export const Input = {
     }
     // Arduino joystick
     if (serialAxes.live) {
-      if (Math.abs(serialAxes.x) > DEADZONE) x = serialAxes.x;
-      if (Math.abs(serialAxes.y) > DEADZONE) y = serialAxes.y;
+      if (serialAxes.x || serialAxes.y) { x = serialAxes.x; y = serialAxes.y; }
       if (serialAxes.btn) b = true;
     }
     const len = Math.hypot(x, y);
@@ -101,7 +100,13 @@ export async function connectSerial(onStatus) {
   }
 }
 
+const RADIAL_DZ = 0.12;
+const cal = { x: 0, y: 0, n: 0, cx: 512, cy: 512 };
+// Map a raw 0-1023 reading to -1..1, using each side's own span from the resting point
+function norm(v, c) { return v >= c ? Math.min(1, (v - c) / Math.max(60, 1023 - c)) : Math.max(-1, (v - c) / Math.max(60, c)); }
+
 async function readLoop(onStatus) {
+  cal.x = 0; cal.y = 0; cal.n = 0;
   const decoder = new TextDecoderStream();
   serialPort.readable.pipeTo(decoder.writable).catch(() => {});
   const reader = decoder.readable.getReader();
@@ -117,8 +122,15 @@ async function readLoop(onStatus) {
         buf = buf.slice(nl + 1);
         const [rx, ry, rb] = line.split(",").map(Number);
         if (Number.isFinite(rx) && Number.isFinite(ry)) {
-          serialAxes.x = (rx - 512) / 512;
-          serialAxes.y = (ry - 512) / 512;
+          // Learn the stick's real resting point from the first readings (cheap modules rest far from 512)
+          if (cal.n < 15) { cal.x += rx; cal.y += ry; cal.n++; if (cal.n === 15) { cal.cx = cal.x / 15; cal.cy = cal.y / 15; } continue; }
+          let ax = norm(rx, cal.cx), ay = norm(ry, cal.cy);
+          // Round dead zone, then rescale so small pushes still move smoothly at any angle
+          const m = Math.hypot(ax, ay);
+          if (m < RADIAL_DZ) { ax = 0; ay = 0; }
+          else { const k = Math.min(1, (m - RADIAL_DZ) / (1 - RADIAL_DZ)) / m; ax *= k; ay *= k; }
+          serialAxes.x += (ax - serialAxes.x) * 0.5; serialAxes.y += (ay - serialAxes.y) * 0.5;
+          if (Math.abs(serialAxes.x) < 0.02) serialAxes.x = 0; if (Math.abs(serialAxes.y) < 0.02) serialAxes.y = 0;
           serialAxes.btn = rb === 1;
         }
       }
