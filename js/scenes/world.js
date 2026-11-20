@@ -12,7 +12,7 @@ import { stage, makeCamera } from "../core/stage.js";
 import { W, H, font, hint, clamp, rect, sticker } from "../core/draw.js";
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
-import { makeWorld, gladeSky, BUILD_RADIUS } from "../gfx/terrain.js";
+import { makeWorld, gladeSky, BUILD_RADIUS, weather } from "../gfx/terrain.js";
 import { CELL } from "../gfx/town.js";
 import { makeCity, TOOLS } from "../gfx/city.js";
 import { lookOf, defaultPalette } from "../gfx/biomes.js";
@@ -27,7 +27,7 @@ const DAY_SECONDS = QUICK ? 120 : 270;
 const CURSOR_SPEED = 12, HOLD = 0.3;
 const MILESTONES = [[12, "Your first neighbors moved in!", "Welcomed the first neighbors."], [60, "It's a real neighborhood now.", "Grew a real neighborhood."], [150, "A town! People are talking.", "Grew into a proper town."], [300, "City status. Look at you.", "Reached city size."]];
 
-let gear, treasures, critters, fixedCam = null, hideHud = false;
+let gear, treasures, critters, rainfall, fixedCam = null, hideHud = false;
 let view, terra, sky, city, cursor, ghost, me, t, dayT, holdT, wheel, tool, drawing, lastCell, growT, pops, puffs, ending, endT, toast, stats, glowSet, light0, milestone;
 
 function build() {
@@ -35,7 +35,8 @@ function build() {
   const scene = new THREE.Scene();
   terra = makeWorld(w.biome, makeRng(game.seed ^ 0x9e3779b9), { look: w.look });
   scene.add(terra.group);
-  sky = gladeSky(scene, terra.biome);
+  sky = gladeSky(scene, terra.biome, { key: w.biome });
+  rainfall = weather(scene, w.biome);
   light0 = { sun: sky.sun.intensity, hemi: sky.hemi.intensity, sunColor: sky.sun.color.clone() };
   city = makeCity(terra, w.palette || defaultPalette(w.biome), {
     onGrow: (i, j, c, g) => { if (g) pops.push({ obj: g, t: 0 }); puff(i, j, city.topY(i, j)); blip("pop"); }
@@ -124,7 +125,7 @@ export const worldScene = {
   },
   exit() { music(null); },
   update(dt) {
-    t += dt; terra.update(dt); city.update(dt);
+    t += dt; terra.update(dt); city.update(dt); rainfall.update(dt, cursor.x, cursor.z);
     if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
     const cam = view.camera;
 

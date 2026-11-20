@@ -168,7 +168,7 @@ function grow() {
   planet.group.position.y = DROP; planet.group.scale.y = 0.02;
   view.scene.add(planet.group);
   dome.visible = false; stars.visible = false;
-  gladeSky(view.scene, planet.biome); view.tone = true; view.exposure = 0.78;
+  gladeSky(view.scene, planet.biome, { key: life.world.biome }); view.tone = true; view.exposure = 0.78;
   spaceLights.forEach(l => { l.visible = false; });
   view.scene.fog = new THREE.Fog(planet.biome.sky[1], 220, 520);
   // Every prop starts at zero size and pops up in turn

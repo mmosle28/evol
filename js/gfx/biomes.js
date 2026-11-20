@@ -60,6 +60,12 @@ export const BIOMES = {
   harbor: { label: "Maple Harbor", sky: [0x5aa0e0, 0xffe6c8], ground: [0x9fbf5a, 0xc9a24a], props: [["fallTree", 12], ["lighthouse", 1], ["house", 3], ["pond", 3], ["fence", 4]], particles: { color: 0xff8a3a, kind: "fall" }, notes: n(392, 0, 440, 494, 0, 440, 392, 330), axes: { calm: 1, kind: 1 } },
   sunset: { label: "Sunset Strip", sky: [0x6a5acd, 0xff9a6a], ground: [0xe8c98a, 0xd8b87a], props: [["palm", 10], ["pinkBuilding", 4], ["pool", 2], ["flower", 6]], particles: { color: 0xffe0a0, kind: "float" }, notes: n(330, 392, 494, 0, 440, 392, 330, 0), axes: { social: 1, playful: 1 } },
   pines: { label: "Pine Peaks", sky: [0x5ab0f0, 0xe8f6ff], ground: [0x5aa04a, 0x4a8f3f], props: [["pine", 16], ["rock", 8], ["tent", 2], ["pond", 2]], particles: { color: 0xffffff, kind: "fall" }, notes: n(262, 330, 392, 0, 349, 330, 294, 0), axes: { calm: 1, driven: 1 } },
+  ember: { label: "Ember Kingdom", sky: [0x1a0606, 0xff5a1a], ground: [0x2a1c1c, 0x3a2622], props: [["tower", 3], ["lantern", 10], ["rock", 8]], particles: { color: 0xff8a3a, kind: "float" }, notes: n(147, 0, 175, 0, 196, 175, 0, 147), axes: { bold: 2 } },
+  snow: { label: "Snow Planet", sky: [0x8fb8e8, 0xf0f6ff], ground: [0xf4f8ff, 0xdfe8f4], props: [["tent", 3], ["lantern", 6], ["rock", 6]], particles: { color: 0xffffff, kind: "fall" }, notes: n(523, 0, 587, 659, 0, 587, 523, 0), axes: { calm: 2 } },
+  bloom: { label: "Bloom Planet", sky: [0x9a7ad8, 0xffd0e8], ground: [0x6fbf62, 0x9ad878], props: [["mushroom", 8], ["flower", 12]], particles: { color: 0xffb0d8, kind: "fall" }, notes: n(659, 784, 0, 880, 784, 659, 0, 587), axes: { kind: 2 } },
+  rain: { label: "Rain Planet", sky: [0x24244a, 0x5a5a8a], ground: [0x2f5a6a, 0x3f6a5f], props: [["lantern", 8], ["mushroom", 8], ["stilt", 3]], particles: { color: 0xaad0ff, kind: "fall" }, notes: n(220, 262, 0, 247, 220, 0, 196, 0), axes: { calm: 1, curious: 1 } },
+  crystal: { label: "Crystal World", sky: [0x081a36, 0x3affd0], ground: [0x163444, 0x224454], props: [["tower", 2], ["rock", 12]], particles: { color: 0x8affff, kind: "float" }, notes: n(880, 0, 988, 1175, 0, 988, 880, 0), axes: { curious: 2 } },
+  candy: { label: "Candy Planet", sky: [0xff8ac8, 0xffe0f0], ground: [0xffa8d0, 0xffd0a8], props: [["mushroom", 12], ["flower", 10]], particles: { color: 0xffffff, kind: "float" }, notes: n(784, 880, 1047, 0, 880, 784, 659, 0), axes: { playful: 2 } },
   jungle: { label: "Jungle Ruins", sky: [0x4ac0e0, 0xfff0b0], ground: [0x3fa04a, 0x2f8a3a], props: [["bigLeaf", 12], ["pyramid", 1], ["flower", 14], ["palm", 3], ["mushroom", 3]], particles: { color: 0xff6bd0, kind: "float" }, notes: n(294, 0, 349, 392, 440, 0, 392, 349), axes: { bold: 1, curious: 1 } }
 };
 export const BIOME_KEYS = Object.keys(BIOMES);
@@ -94,7 +100,9 @@ export function defaultPalette(key) {
     bayou: { walls: ["#f6e2b8", "#bfe0b0", "#f0bfa0"], roof: "#3f7a6a" }, desert: { walls: ["#f4dcb8", "#f0c89a", "#fff1dc"], roof: "#c8643f" },
     suburb: { walls: ["#ffc8c8", "#c8e4ff", "#fff0a8"], roof: "#e8604f" }, spooky: { walls: ["#c9b8e8", "#a89ad0", "#e0d4f0"], roof: "#4a3a6a" },
     harbor: { walls: ["#fff4e2", "#f6c27a", "#b8dcef"], roof: "#c8443a" }, sunset: { walls: ["#ffd0c0", "#ffe8b0", "#f8c8e0"], roof: "#e8784a" },
-    pines: { walls: ["#f0e4d4", "#d8c4a8", "#c8d8e0"], roof: "#4a6a8a" }, jungle: { walls: ["#f4ead0", "#d8f0c8", "#f8d8a8"], roof: "#2f8a5a" }
+    pines: { walls: ["#f0e4d4", "#d8c4a8", "#c8d8e0"], roof: "#4a6a8a" }, ember: { walls: ["#3a3030", "#4a3a34", "#2e2828"], roof: "#c83a1a" },
+    snow: { walls: ["#e8eef8", "#c8d8ec", "#f4e8d8"], roof: "#3a5a8a" }, bloom: { walls: ["#fff0f4", "#ffd8e4", "#f4f0d8"], roof: "#d85a8a" },
+    rain: { walls: ["#b8c4d8", "#a8b8c8", "#c8c0b0"], roof: "#2a3a5a" }, crystal: { walls: ["#c8f0f4", "#a8d8e8", "#d8d0f8"], roof: "#5a4ad8" }, candy: { walls: ["#fff0a8", "#c8f0ff", "#ffd8f0"], roof: "#ff5a9a" }, jungle: { walls: ["#f4ead0", "#d8f0c8", "#f8d8a8"], roof: "#2f8a5a" }
   }[key] || { walls: ["#fff1dc", "#ffd6d6", "#d6ecff"], roof: "#e86a5a" };
 }
 

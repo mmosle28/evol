@@ -10,10 +10,13 @@ const THREE = window.THREE;
 
 // How each base biome shapes the land and what grows on it
 const SHAPE = {
-  bayou: { hills: 3, rough: 0.3, tree: "willow", lakes: 2 }, desert: { hills: 7, rough: 0.6, tree: "cactus", lakes: 0, rocks: 2 },
+  bayou: { hills: 3, rough: 0.3, tree: "willow", lakes: 2, base: -1.1 }, desert: { hills: 5, rough: 0.6, tree: "cactus", lakes: 0, rocks: 2, dunes: 3.2 },
   suburb: { hills: 4, rough: 0.3, tree: "round", lakes: 1 }, spooky: { hills: 7, rough: 0.5, tree: "bare", lakes: 1 },
   harbor: { hills: 6, rough: 0.4, tree: "autumn", lakes: 1, coast: true }, sunset: { hills: 4, rough: 0.3, tree: "palm", lakes: 1, coast: true },
-  pines: { hills: 16, rough: 0.6, tree: "pine", lakes: 1, snow: 13 }, jungle: { hills: 9, rough: 0.6, tree: "jungle", lakes: 1 }
+  ember: { hills: 14, rough: 1, tree: "burnt", lakes: 3, lava: true, ridged: true }, snow: { hills: 10, rough: 0.6, tree: "pine", lakes: 1, snowAll: true },
+  bloom: { hills: 7, rough: 0.4, tree: "blossom", lakes: 1 }, rain: { hills: 7, rough: 0.4, tree: "round", lakes: 2, base: -0.7 },
+  crystal: { hills: 11, rough: 0.7, tree: "crystal", lakes: 1, ridged: true }, candy: { hills: 6, rough: 0.3, tree: "lollipop", lakes: 1 },
+  pines: { hills: 30, rough: 0.8, tree: "pine", lakes: 1, snow: 14, ridged: true }, jungle: { hills: 15, rough: 0.9, tree: "jungle", lakes: 1, ridged: true }
 };
 export const BUILD_RADIUS = 95; // how far from the start you can build
 
@@ -77,7 +80,7 @@ function rock(rng, color) {
 
 const LEAVES = {
   round: [0x6fb04e, 0x8cc45e], autumn: [0xe8873a, 0xd9562e], pine: [0x3f7a4e, 0x4f8c58], palm: [0x5fae4a, 0x7cc25a],
-  willow: [0x7aa65a, 0x93b86c], bare: [0x9a6ad0, 0x7a52b0], jungle: [0x2f9a4a, 0x4cb45a], cactus: [0x5f9a5a, 0x6aa864]
+  willow: [0x7aa65a, 0x93b86c], blossom: [0xffa8d0, 0xffd6e8], burnt: [0x2a2020, 0xc8441a], crystal: [0x5affe0, 0x9a7aff], lollipop: [0xff6ab0, 0x7ad8ff], bare: [0x9a6ad0, 0x7a52b0], jungle: [0x2f9a4a, 0x4cb45a], cactus: [0x5f9a5a, 0x6aa864]
 };
 
 export function makeWorld(key, rng, { size = 320, segments = 160, look = null, density = 1 } = {}) {
@@ -93,7 +96,10 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
     const d = Math.hypot(x, z);
     // Gentle near the building ground, fuller hills further out
     const hillK = 0.55 + 0.45 * smooth((d - 20) / 60); // a little gentler where you start, real hills everywhere
-    let h = noise((x + ox) * 0.009, (z + oz) * 0.009, 4) * shape.hills * hillK + detail((x + ox) * 0.04, (z + oz) * 0.04, 2) * shape.rough + 1.6;
+    let n = noise((x + ox) * 0.009, (z + oz) * 0.009, 4);
+    if (shape.ridged) n = Math.pow(1 - Math.abs(n), 3) * 1.25 - 0.12; // sharp mountain ridges
+    let h = n * shape.hills * hillK + detail((x + ox) * 0.04, (z + oz) * 0.04, 2) * shape.rough + 1.6 + (shape.base || 0);
+    if (shape.dunes) h += (Math.sin((x + z * 0.4) * 0.09 + noise(x * 0.02, z * 0.02, 2) * 3) * 0.5 + 0.5) * shape.dunes * hillK; // rolling dunes
     if (shape.coast) h -= smooth((x - half * 0.3) / (half * 0.5)) * 12;
     for (const [lx, lz, lr] of lakes) h -= smooth(1 - Math.hypot(x - lx, z - lz) / lr) * 4.5;
     // Where you arrive is always dry land: a gentle rise lifts the start above any water
@@ -112,7 +118,7 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   // Ground a touch richer and darker than the buildings so the town always pops against it
   const richer = (hex, dl) => { const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl); return c.offsetHSL(0, 0.1, dl - Math.max(0, hsl.l - 0.5) * 0.7); };
   // PS1 mood: colors pulled darker and a little desaturated
-  const g1 = richer(biome.ground[0], -0.16).offsetHSL(0, -0.12, 0), g2 = richer(biome.ground[1], -0.12).offsetHSL(0, -0.12, 0);
+  const g1 = richer(biome.ground[0], -0.12), g2 = richer(biome.ground[1], -0.08);
   const sand = new THREE.Color(0xe8d6a8).lerp(g1, 0.15), rockC = new THREE.Color(0xa49a8c), snow = new THREE.Color(0xf6f4ee), wet = g1.clone().multiplyScalar(0.7);
   const colors = new Float32Array(n * 3), c = new THREE.Color();
   for (let i = 0; i < n; i++) {
@@ -122,6 +128,7 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
     c.lerp(sand, smooth((0.7 - y) / 0.5));
     c.lerp(rockC, smooth((0.82 - nor.getY(i)) / 0.12) * 0.85);
     if (shape.snow) c.lerp(snow, smooth((y - shape.snow) / 3));
+    if (shape.snowAll) c.lerp(snow, 0.85);
     colors.set([c.r, c.g, c.b], i * 3);
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
@@ -130,7 +137,10 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   ground.receiveShadow = true; group.add(ground);
 
   // Water: clear and bright, with a soft sheen from the low sun
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(size * 3, size * 3), new THREE.MeshStandardMaterial({ color: new THREE.Color(0x5ec4d6).lerp(new THREE.Color(biome.sky[0]), 0.2), transparent: true, opacity: 0.86, roughness: 0.15, metalness: 0.1 }));
+  const waterMat = shape.lava ? new THREE.MeshStandardMaterial({ color: 0xff5a10, emissive: 0xff3a00, emissiveIntensity: 1.4, roughness: 0.6 })
+    : shape.snowAll ? new THREE.MeshStandardMaterial({ color: 0xcfe8ff, roughness: 0.1, metalness: 0.2 }) // frozen lakes
+    : new THREE.MeshStandardMaterial({ color: new THREE.Color(0x5ec4d6).lerp(new THREE.Color(biome.sky[0]), 0.2), transparent: true, opacity: 0.86, roughness: 0.15, metalness: 0.1 });
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(size * 3, size * 3), waterMat);
   water.rotation.x = -Math.PI / 2; water.position.y = 0; water.receiveShadow = true; group.add(water);
 
   // Everything already growing or standing in the world, indexed by build cell so building can clear it
@@ -159,10 +169,10 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   const grove = makeNoise(rng);
   const leaves = LEAVES[shape.tree] || LEAVES.round;
   const conifer = ["pine", "willow"].includes(shape.tree), spiky = shape.tree === "cactus";
-  const crownGeo = conifer ? new THREE.ConeGeometry(1, 2.6, 5) : spiky ? new THREE.CylinderGeometry(0.35, 0.4, 2.2, 5) : new THREE.IcosahedronGeometry(1.1, 0);
+  const crownGeo = conifer ? new THREE.ConeGeometry(1, 2.6, 5) : spiky ? new THREE.CylinderGeometry(0.35, 0.4, 2.2, 5) : shape.tree === "crystal" ? new THREE.ConeGeometry(0.7, 3.4, 4) : shape.tree === "lollipop" ? new THREE.SphereGeometry(0.9, 8, 6) : new THREE.IcosahedronGeometry(1.1, 0);
   const N = Math.round((spiky ? 500 : 2600) * density);
   const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.24, 1, 5), new THREE.MeshStandardMaterial({ color: 0x4a3828, roughness: 1, flatShading: true }), N);
-  const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }), N);
+  const crowns = new THREE.InstancedMesh(crownGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: shape.tree === "crystal" ? 0.2 : 1, flatShading: true, emissive: shape.tree === "crystal" ? 0x2a6a8a : 0x000000 }), N);
   trunks.castShadow = crowns.castShadow = true; crowns.receiveShadow = true;
   const treeAt = new Map(), tm = new THREE.Matrix4(), tq = new THREE.Quaternion(), tv = new THREE.Vector3(), ts = new THREE.Vector3(), tc = new THREE.Color();
   let ti = 0;
@@ -233,7 +243,27 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
 }
 
 /** A Tiny Glade sky: soft gradient, a glowing sun, warm low light and long soft shadows. Returns the lights. */
-export function gladeSky(scene, biome, { sunDir = new THREE.Vector3(-0.55, 0.72, 0.6).normalize() } = {}) {
+// Each base world has its own air: fog color and distance, sun angle, color and strength
+const AIR = {
+  ember: { fog: 0x4a140a, near: 14, far: 120, sun: [-0.5, 0.5, 0.6], sunC: 0xff7a4a, sunI: 1.6, hemi: 0.45 },
+  snow: { fog: 0xe4ecf8, near: 8, far: 85, sun: [-0.4, 0.7, 0.6], sunC: 0xf4f8ff, sunI: 1.9, hemi: 0.7 },
+  bloom: { fog: 0xffd6ea, near: 35, far: 200, sun: [-0.6, 0.6, 0.55], sunC: 0xffe8f0, sunI: 2.4, hemi: 0.6 },
+  rain: { fog: 0x3a3a5e, near: 6, far: 70, sun: [-0.3, 0.8, 0.5], sunC: 0xa8b8e8, sunI: 1.2, hemi: 0.5 },
+  crystal: { fog: 0x0a2a3a, near: 14, far: 120, sun: [-0.5, 0.6, 0.6], sunC: 0x8affe8, sunI: 1.8, hemi: 0.45 },
+  candy: { fog: 0xffd8ee, near: 50, far: 260, sun: [-0.55, 0.72, 0.6], sunC: 0xffffff, sunI: 2.5, hemi: 0.6 },
+  desert: { fog: 0xe8b07a, near: 40, far: 230, sun: [0.3, 0.9, 0.3], sunC: 0xffffff, sunI: 3.0, hemi: 0.55 },
+  spooky: { fog: 0x2a1e48, near: 8, far: 75, sun: [-0.4, 0.5, 0.6], sunC: 0x9a8cff, sunI: 1.1, hemi: 0.45 },
+  bayou: { fog: 0x7a9a78, near: 6, far: 70, sun: [-0.5, 0.6, 0.6], sunC: 0xfff0c0, sunI: 1.8, hemi: 0.55 },
+  pines: { fog: 0xd8e4f0, near: 45, far: 260, sun: [-0.5, 0.75, 0.5], sunC: 0xf4f8ff, sunI: 2.4, hemi: 0.6 },
+  sunset: { fog: 0xff9a8a, near: 30, far: 200, sun: [-0.8, 0.22, 0.55], sunC: 0xff8a4a, sunI: 2.6, hemi: 0.5 },
+  jungle: { fog: 0x8fbf8a, near: 10, far: 95, sun: [-0.3, 0.85, 0.4], sunC: 0xfff6d0, sunI: 2.2, hemi: 0.6 },
+  harbor: { fog: 0xe8c08a, near: 25, far: 160, sun: [-0.7, 0.45, 0.55], sunC: 0xffc070, sunI: 2.5, hemi: 0.5 },
+  suburb: { fog: 0xcfe0f0, near: 50, far: 260, sun: [-0.55, 0.72, 0.6], sunC: 0xffe2c0, sunI: 2.4, hemi: 0.55 }
+};
+
+export function gladeSky(scene, biome, { key = null, sunDir = new THREE.Vector3(-0.55, 0.72, 0.6).normalize() } = {}) {
+  const air = AIR[key];
+  if (air) sunDir = new THREE.Vector3(...air.sun).normalize();
   const top = new THREE.Color(biome.sky[0]), hor = new THREE.Color(biome.sky[1]);
   const dome = new THREE.Mesh(new THREE.SphereGeometry(450, 32, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
@@ -245,14 +275,33 @@ export function gladeSky(scene, biome, { sunDir = new THREE.Vector3(-0.55, 0.72,
         gl_FragColor = vec4(c, 1.0); }`
   }));
   scene.add(dome);
-  const hemi = new THREE.HemisphereLight(biome.night ? 0xb8a8ff : 0xdfeeff, new THREE.Color(biome.ground[0]).multiplyScalar(0.6), biome.night ? 0.55 : 0.5);
+  const hemi = new THREE.HemisphereLight(biome.night ? 0xb8a8ff : 0xdfeeff, new THREE.Color(biome.ground[0]).multiplyScalar(0.6), air ? air.hemi : biome.night ? 0.55 : 0.5);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(biome.night ? 0xc8c0ff : 0xffe2c0, biome.night ? 1.2 : 2.4);
+  const sun = new THREE.DirectionalLight(air ? air.sunC : biome.night ? 0xc8c0ff : 0xffe2c0, air ? air.sunI : biome.night ? 1.2 : 2.4);
   sun.position.copy(sunDir).multiplyScalar(80); sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
   Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 220 });
   scene.add(sun, sun.target);
   // Silent Hill fog: thick, close, and the color of the sky near the ground
-  scene.fog = new THREE.Fog(hor.clone().lerp(top, 0.25).lerp(new THREE.Color(0x8a8a90), 0.35), 18, 110);
+  scene.fog = air ? new THREE.Fog(new THREE.Color(air.fog), air.near, air.far) : new THREE.Fog(hor.clone().lerp(top, 0.25).lerp(new THREE.Color(0x8a8a90), 0.35), 18, 110);
   return { hemi, sun, dome };
+}
+
+/** Weather around the camera: snow, rain, petals, embers or sparkles, depending on the world. */
+export function weather(scene, key) {
+  const W = { snow: [0xffffff, -3, 0.35, 1600], rain: [0xb8d0ff, -26, 0.22, 2200], bloom: [0xffb0d8, -1.8, 0.4, 900], ember: [0xff8a3a, 2.5, 0.3, 900], crystal: [0x8affff, 1, 0.3, 700], candy: [0xffffff, 0.8, 0.3, 400], bayou: [0xfff27a, 0.4, 0.3, 300] }[key];
+  if (!W) return { update() {} };
+  const [color, vy, size, n] = W, arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) arr.set([(Math.random() - 0.5) * 90, Math.random() * 40, (Math.random() - 0.5) * 90], i * 3);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color, size, transparent: true, opacity: 0.9, fog: false }));
+  scene.add(pts);
+  return {
+    update(dt, cx, cz) {
+      pts.position.set(cx, 0, cz);
+      const p = geo.attributes.position;
+      for (let i = 0; i < n; i++) { let y = p.getY(i) + vy * dt; if (y < 0) y += 40; if (y > 40) y -= 40; p.setY(i, y); if (key !== "rain") p.setX(i, p.getX(i) + Math.sin(y + i) * dt * 0.6); }
+      p.needsUpdate = true;
+    }
+  };
 }
