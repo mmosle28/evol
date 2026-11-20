@@ -15,7 +15,7 @@ Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 
 | Control | Keyboard | Arduino controller |
 |---|---|---|
-| Move, pick in menus | Arrow keys or WASD | Joystick |
+| Walk (up), turn (left/right), pick in menus | Arrow keys or WASD | Joystick |
 | Bite, interact, confirm | Space or Enter | Press the joystick down (its button) |
 
 1. **The pond (75 s).** You're a small fish. Eat pondweed, bugs or minnows; pick things up; hide in reeds. Bite the pike from behind and it flees, head-on and it bites back. A heron can take your tail. Each seed picks 4 random events: a frog, a turtle you can hide under, fish eggs and a crayfish raiding them, a kid's net, a baited hook (mash to escape), a fish tangled in fishing line you can free, or a rain shower full of bugs.

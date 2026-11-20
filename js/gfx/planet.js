@@ -95,7 +95,7 @@ export function makePlanet(key, rng, { R = 20, detail = 4, spots = [], propScale
     const N = 160, arr = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) { const d = new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() - 0.5).normalize().multiplyScalar(R + 1 + rng() * R * 0.35); arr.set([d.x, d.y, d.z], i * 3); }
     const pg = new THREE.BufferGeometry(); pg.setAttribute("position", new THREE.BufferAttribute(arr, 3));
-    parts = new THREE.Points(pg, new THREE.PointsMaterial({ color: biome.particles.color, size: R * 0.018, transparent: true, opacity: 0.85 }));
+    parts = new THREE.Points(pg, new THREE.PointsMaterial({ color: biome.particles.color, size: Math.min(R * 0.018, 0.28), transparent: true, opacity: 0.85 }));
     group.add(parts);
   }
   return api;
@@ -115,8 +115,8 @@ export function worldSky(scene, key, { radius = 400, look = null } = {}) {
   const N = 500, arr = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) { const d = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(radius * 0.9); arr.set([d.x, d.y, d.z], i * 3); }
   const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(arr, 3));
-  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: biome.night ? 0.9 : 0.25 })));
-  if (biome.night) { const moon = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 10), new THREE.MeshBasicMaterial({ color: 0xfff4c8 })); moon.position.set(-120, 150, -220); scene.add(moon); }
+  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: biome.night ? 0.9 : 0.25, fog: false })));
+  if (biome.night) { const moon = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 10), new THREE.MeshBasicMaterial({ color: 0xfff4c8, fog: false })); moon.position.set(-120, 150, -220); scene.add(moon); }
 
   const hemi = new THREE.HemisphereLight(biome.night ? 0xb0a0ff : 0xffffff, biome.ground[0], biome.night ? 0.75 : 0.85);
   scene.add(hemi);

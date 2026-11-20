@@ -21,7 +21,8 @@ const THREE = window.THREE;
 const UP = new THREE.Vector3(0, 1, 0);
 const QUICK = new URLSearchParams(location.search).has("quick");
 const DAY_SECONDS = QUICK ? 90 : 300;
-const R = 15, SPEED = 8, REACH = 5;
+// A big planet with a low camera: you stand inside the world and the horizon curves away gently.
+const R = 34, SPEED = 9, TURN = 2.4, REACH = 5;
 
 let view, planet, world, rng, player, npcs, moths, home, t, dayT, mode, sel, near, lines, quiz, carried, flights, pops, toast, lastWarn;
 
@@ -46,16 +47,18 @@ function build() {
   // Keep space around where you land and where residents stand
   const spawn = new THREE.Vector3(0, 1, 0);
   const spots = [spawn.clone()];
-  const npcDirs = world.npcs.map((_, i) => { const a = i / world.npcs.length * Math.PI * 2 + 0.4; const d = new THREE.Vector3(Math.cos(a) * Math.sin(0.55 + i * 0.25), Math.cos(0.55 + i * 0.25), Math.sin(a) * Math.sin(0.55 + i * 0.25)).normalize(); spots.push(d); return d; });
-  const mothDirs = [new THREE.Vector3(0.6, -0.2, 0.7).normalize(), new THREE.Vector3(-0.7, 0.1, -0.6).normalize()];
-  const homeDir = new THREE.Vector3(0.18, 1, 0.12).normalize();
+  const npcDirs = world.npcs.map((_, i) => { const a = i / world.npcs.length * Math.PI * 2 + 2.2, e = 0.32 + i * 0.1; const d = new THREE.Vector3(Math.cos(a) * Math.sin(e), Math.cos(e), Math.sin(a) * Math.sin(e)).normalize(); spots.push(d); return d; });
+  const mothDirs = [new THREE.Vector3(0.45, 0.85, -0.3).normalize(), new THREE.Vector3(-0.5, 0.8, 0.35).normalize()];
+  const homeDir = new THREE.Vector3(0.1, 1, 0.16).normalize(); // just behind you at the start
   spots.push(...mothDirs, homeDir);
-  planet = makePlanet(world.biome, rng, { R, detail: 4, spots, propScale: 1.2, density: 1.3, look: world.look });
+  planet = makePlanet(world.biome, rng, { R, detail: 5, spots, propScale: 1.5, density: 4, look: world.look });
+  // Fog in the world's horizon color makes the distance soft and the world feel big
+  scene.fog = new THREE.Fog(planet.biome.sky[1], 18, 70);
   scene.add(planet.group);
   worldSky(scene, world.biome, { look: world.look });
 
   // You
-  player = { obj: wrapCreature(game.life.creature.body, BODY_COLORS[game.life.creature.color], 0.75), heading: 0, moving: false, bounce: 0, act: 0 };
+  player = { obj: wrapCreature(game.life.creature.body, BODY_COLORS[game.life.creature.color], 0.75), heading: Math.PI, moving: false, bounce: 0, act: 0 };
   scene.add(player.obj);
 
   // Residents
@@ -82,8 +85,9 @@ function build() {
   planet.place(home.obj, homeDir, 0.5);
   const flag = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 3), M.mat(0xffffff)); flag.position.y = 2.3; flag.rotation.z = -Math.PI / 2; home.obj.add(flag);
 
-  const camera = makeCamera(46);
-  camera.position.set(0, R + 10, 21); camera.lookAt(0, R - 2.5, -3);
+  // Third person: low and just behind your creature, looking ahead along the ground
+  const camera = makeCamera(58);
+  camera.position.set(0, R + 4.2, 8.5); camera.lookAt(0, R + 1.6, -8);
   view = { scene, camera };
 }
 
@@ -275,15 +279,12 @@ export const planetScene = {
     pops = pops.filter(p => p.t < 1.6);
 
     // ----- Movement: the planet turns under you -----
-    const mx = Input.x, mz = Input.y, mag = Math.hypot(mx, mz);
+    // Left/right turns, up/down walks. You always face away from the camera; the world turns around you.
+    const turn = Math.abs(Input.x) > 0.15 ? Input.x : 0, fwd = Math.abs(Input.y) > 0.15 ? -Input.y : 0;
     player.moving = false;
-    if ((mode === "walk" || mode === "carry") && mag > 0.15) {
-      const d = new THREE.Vector3(mx, 0, mz).normalize();
-      const q = new THREE.Quaternion().setFromAxisAngle(d.clone().cross(UP).normalize(), SPEED * Math.min(1, mag) * dt / R);
-      planet.group.quaternion.premultiply(q);
-      const target = Math.atan2(d.x, d.z);
-      let diff = target - player.heading; diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      player.heading += diff * Math.min(1, dt * 12);
+    if ((mode === "walk" || mode === "carry") && (turn || fwd)) {
+      if (turn) planet.group.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP, turn * TURN * dt));
+      if (fwd) planet.group.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fwd * SPEED * dt / R));
       player.moving = true;
     }
     const up = localUp();
@@ -443,7 +444,7 @@ export const planetScene = {
     // ----- Mode overlays -----
     if (mode === "walk") {
       if (near) hint(g, near.kind === "npc" ? `Button: ${near.n.met ? near.n.d.name : "say hi"}` : near.kind === "moth" ? "Button: answer the moth" : "Button: your tent");
-      else hint(g, "Joystick: walk around the planet");
+      else hint(g, "Up: walk   ·   Left / right: turn");
     } else if (mode === "carry") {
       hint(g, "Carrying " + carried.d.name + ".  Button: throw (or set down next to someone)");
     } else if (mode === "menu") {
