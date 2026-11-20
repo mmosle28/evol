@@ -20,17 +20,19 @@ export const GEAR = {
   scarf: { name: "a cozy scarf", slot: "body", build: () => { const g = new THREE.Group(); g.add(mesh(new THREE.TorusGeometry(0.45, 0.1, 6, 16), mat(0x2fa86a)), mesh(new THREE.BoxGeometry(0.16, 0.5, 0.06), mat(0x2fa86a), 0.2, -0.25, 0.4)); g.children[0].rotation.x = Math.PI / 2; return g; } }
 };
 
-/** Dress an avatar: finds the top of its head once, then swaps gear per slot. */
-export function outfit(avatar) {
-  const box = new THREE.Box3().setFromObject(avatar);
-  const top = box.max.y - avatar.position.y, mid = (box.max.y + box.min.y) / 2 - avatar.position.y, depth = (box.max.z - box.min.z) / 2;
-  const anchors = { head: [0, top - 0.05, 0], face: [0, top - 0.35, depth * 0.9], back: [0, mid + 0.1, -depth * 0.85], body: [0, mid, 0] };
+/** Dress a creature (from models.creature): gear sits on its body, which faces +x. */
+export function outfit(creature) {
+  const A = creature.userData.anchor || { top: 2.4, mid: 1.4, front: 1, sy: 1 };
+  const anchors = { head: [0, A.top - 0.12, 0], face: [A.front * 0.92, A.mid + A.sy * 0.25, 0], back: [-A.front * 0.95, A.mid, 0], body: [0, A.mid, 0] };
+  const scale = { head: 1.5, face: 1.4, back: 1.3, body: 1.65 };
   const worn = {};
   return {
     wear(id) {
       const g = GEAR[id]; if (!g) return;
-      if (worn[g.slot]) avatar.remove(worn[g.slot]);
-      const o = g.build(); o.position.set(...anchors[g.slot]); avatar.add(o); worn[g.slot] = o; worn[g.slot].userData.id = id;
+      if (worn[g.slot]) creature.remove(worn[g.slot]);
+      const o = g.build(); o.position.set(...anchors[g.slot]); o.scale.setScalar(scale[g.slot]);
+      o.rotation.y = Math.PI / 2; // gear is modeled facing +z; creatures face +x
+      o.userData.id = id; creature.add(o); worn[g.slot] = o;
     },
     worn: () => Object.values(worn).map(o => o.userData.id)
   };

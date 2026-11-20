@@ -26,7 +26,7 @@ const DAY_SECONDS = QUICK ? 120 : 270;
 const CURSOR_SPEED = 12, HOLD = 0.3;
 const MILESTONES = [[12, "Your first neighbors moved in!", "Welcomed the first neighbors."], [60, "It's a real neighborhood now.", "Grew a real neighborhood."], [150, "A town! People are talking.", "Grew into a proper town."], [300, "City status. Look at you.", "Reached city size."]];
 
-let gear, treasures, critters;
+let gear, treasures, critters, fixedCam = null, hideHud = false;
 let view, terra, sky, city, cursor, ghost, me, t, dayT, holdT, wheel, tool, drawing, lastCell, growT, pops, puffs, ending, endT, toast, stats, glowSet, light0, milestone;
 
 function build() {
@@ -54,16 +54,16 @@ function build() {
   // You: your creature trots along beside the cursor and hops when you build
   const color = BODY_COLORS[game.life.creature.color];
   me = { obj: new THREE.Group(), x: 0, z: 4, hop: 0 };
-  const c = M.creature(game.life.creature.body, { scale: 0.5, color, accent: new THREE.Color(color).multiplyScalar(0.7).getHex() });
+  const c = M.creature(game.life.creature.body, { scale: 0.8, color, accent: new THREE.Color(color).multiplyScalar(0.7).getHex() });
   c.rotation.y = -Math.PI / 2; me.obj.add(c); me.inner = c;
   c.traverse(o => { if (o.isMesh) o.castShadow = true; });
   scene.add(me.obj);
   // Your evolved alien is the builder here: it starts in a hard hat
-  gear = outfit(me.obj); gear.wear("hardhat");
+  gear = outfit(c); gear.wear("hardhat");
 
   // Life in the world: wandering creatures and hidden treasures
   const wrng = makeRng(game.seed ^ 0x51ed27);
-  critters = makeCritters(terra, wrng, (color, r) => { const o = new THREE.Group(); const b = M.creature({ shape: r.pick(["round", "blob", "long"]), eyes: 2, limbs: 4, limbType: "legs", features: [r.pick(["antennae", "frills", "horns"])] }, { scale: 0.22, color }); b.rotation.y = -Math.PI / 2; o.add(b); return o; });
+  critters = makeCritters(terra, wrng, (color, r) => { const o = new THREE.Group(); const b = M.creature({ shape: r.pick(["round", "blob", "long"]), eyes: 2, limbs: 4, limbType: "legs", features: [r.pick(["antennae", "frills", "horns"])] }, { scale: 0.3, color }); b.rotation.y = -Math.PI / 2; o.add(b); return o; });
   treasures = makeTreasures(terra, wrng, 8);
   scene.add(critters.group, treasures.group);
 
@@ -117,7 +117,8 @@ export const worldScene = {
     const w = game.life.world;
     music(lookOf(w.biome, w.look).notes); ambience("quiet");
     setToast(`You're the builder of ${w.name}. Lay a road, or go find the sparkles.`);
-    if (new URLSearchParams(location.search).has("debug")) window.evolWorld = { city: () => city, cursor: () => cursor, setDay: v => { dayT = v; }, grow: n => { for (let k = 0; k < n; k++) city.grow(); },
+    if (new URLSearchParams(location.search).has("debug")) window.evolWorld = { city: () => city, cursor: () => cursor, treasures: () => treasures, wear: id => gear.wear(id), me: () => me,
+      setCam: (p, l) => { fixedCam = p ? { p: new THREE.Vector3(...p), l: new THREE.Vector3(...l) } : null; }, hideHud: v => { hideHud = v; ghost.visible = !v; }, setDay: v => { dayT = v; }, grow: n => { for (let k = 0; k < n; k++) city.grow(); },
       build: (type, cellsList) => { const prev = tool; tool = type; for (const [i, j] of cellsList) use(i, j); tool = prev; } };
   },
   exit() { music(null); },
@@ -177,8 +178,8 @@ export const worldScene = {
     while (milestone < MILESTONES.length && st.population >= MILESTONES[milestone][0]) { setToast(MILESTONES[milestone][1]); note(MILESTONES[milestone][2]); blip("yay"); milestone++; }
 
     // ----- Camera follows the cursor from above -----
-    cam.position.lerp(new THREE.Vector3(cursor.x * 0.7 - 8, 34, cursor.z * 0.7 + 40), dt * 2.5);
-    cam.lookAt(cursor.x * 0.8, 0, cursor.z * 0.8 - 3);
+    if (fixedCam) { cam.position.copy(fixedCam.p); cam.lookAt(fixedCam.l); }
+    else { cam.position.lerp(new THREE.Vector3(cursor.x * 0.7 - 8, 34, cursor.z * 0.7 + 40), dt * 2.5); cam.lookAt(cursor.x * 0.8, 0, cursor.z * 0.8 - 3); }
 
     // ----- Day turns to dusk: the sun lowers and warms, windows light up -----
     const dusk = clamp((dayT - 0.6) / 0.4, 0, 1);
@@ -195,6 +196,7 @@ export const worldScene = {
     tick(dt);
   },
   draw(g) {
+    if (hideHud) return;
     const w = game.life.world, look = lookOf(w.biome, w.look), st = city.stats();
     // World name and the day
     g.fillStyle = "rgba(30,26,46,0.55)"; rect(g, 24, 20, 340, 92, 24); g.fill();

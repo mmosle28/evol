@@ -166,6 +166,7 @@ export function creature(body, { scale = 1, color = PAL.red, accent = PAL.redDar
   b.position.y = 1.4 * sy + 0.4;
   g.add(b);
   const top = b.position.y + sy, front = sx;
+  g.userData.anchor = { top, mid: b.position.y, front, sy };
 
   // Limbs
   const n = body.limbs || 0;
