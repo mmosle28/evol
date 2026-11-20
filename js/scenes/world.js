@@ -24,10 +24,11 @@ import { outfit, makeTreasures, makeCritters, GEAR } from "../gfx/wilds.js";
 const THREE = window.THREE;
 const QUICK = new URLSearchParams(location.search).has("quick");
 const DAY_SECONDS = QUICK ? 120 : 270;
-const CURSOR_SPEED = 12, HOLD = 0.3;
+const CURSOR_SPEED = 12, HOLD = 0.35;
 const MILESTONES = [[12, "Your first neighbors moved in!", "Welcomed the first neighbors."], [60, "It's a real neighborhood now.", "Grew a real neighborhood."], [150, "A town! People are talking.", "Grew into a proper town."], [300, "City status. Look at you.", "Reached city size."]];
 
 let gear, treasures, critters, rainfall, fixedCam = null, hideHud = false;
+let flicked = false, keyHook = null;
 let view, terra, sky, city, cursor, ghost, me, t, dayT, holdT, wheel, tool, drawing, lastCell, growT, pops, puffs, ending, endT, toast, stats, glowSet, light0, milestone;
 
 function build() {
@@ -114,7 +115,8 @@ function puff(i, j, y) {
 export const worldScene = {
   enter() {
     build(); stage.view = view;
-    t = 0; dayT = 0; holdT = 0; wheel = false; tool = "road"; drawing = false; lastCell = ""; growT = 0; pops = []; puffs = []; ending = false; endT = 0; toast = null; glowSet = false; milestone = 0;
+    if (!keyHook) { keyHook = e => { const d = parseInt(e.key, 10); if (d >= 1 && d <= TOOLS.length && !ending) { tool = TOOLS[d - 1].id; drawing = false; wheel = false; holdT = 0; setToast(TOOLS[d - 1].label); } }; window.addEventListener("keydown", keyHook); }
+    t = 0; dayT = 0; holdT = 0; wheel = false; flicked = false; tool = "road"; drawing = false; lastCell = ""; growT = 0; pops = []; puffs = []; ending = false; endT = 0; toast = null; glowSet = false; milestone = 0;
     stats = game.stats = { actions: 0, bulldozed: 0, placed: {}, first: null, firstAt: 0, found: [] };
     const w = game.life.world;
     music(lookOf(w.biome, w.look).notes); ambience("quiet");
@@ -150,9 +152,14 @@ export const worldScene = {
     // ----- Tool wheel: hold the button, flick left/right, let go -----
     if (Input.held()) { holdT += dt; if (holdT > HOLD && !wheel) { wheel = true; drawing = false; blip("talk"); } }
     if (wheel) {
-      const tap = Input.tapped();
-      if (tap.x) { const n = TOOLS.findIndex(o => o.id === tool); tool = TOOLS[(n + tap.x + TOOLS.length) % TOOLS.length].id; blip("talk"); }
-      if (!Input.held()) { wheel = false; holdT = 0; setToast(TOOLS.find(o => o.id === tool).label + (tool === "road" ? ": tap to start drawing, tap again to stop" : "")); }
+      // Hold then let go = next tool. Flicking left/right while holding also works.
+      const tap = Input.tapped(), n = TOOLS.findIndex(o => o.id === tool);
+      if (tap.x) { tool = TOOLS[(n + tap.x + TOOLS.length) % TOOLS.length].id; flicked = true; blip("talk"); }
+      if (!Input.held()) {
+        if (!flicked) tool = TOOLS[(n + 1) % TOOLS.length].id;
+        wheel = false; holdT = 0; flicked = false; drawing = false; blip("talk");
+        setToast(TOOLS.find(o => o.id === tool).label + (tool === "road" ? ": tap to start drawing, tap again to stop" : ""));
+      }
     } else {
       if (!Input.held() && holdT > 0) {
         // a quick tap: use the tool (roads toggle drawing)
@@ -219,13 +226,13 @@ export const worldScene = {
       const n = TOOLS.length, size = wheel ? 78 : 52, gap = wheel ? 26 : 12, total = n * size + (n - 1) * gap, x0 = W / 2 - total / 2 + size / 2, y = wheel ? 600 : 650;
       g.fillStyle = wheel ? "rgba(255,250,240,0.95)" : "rgba(30,26,46,0.5)"; rect(g, W / 2 - total / 2 - 24, y - size / 2 - 18, total + 48, size + (wheel ? 60 : 36), 26); g.fill();
       TOOLS.forEach((o, i) => {
-        const on = o.id === tool, x = x0 + i * (size + gap);
+        const pick = wheel && !flicked ? TOOLS[(TOOLS.findIndex(q => q.id === tool) + 1) % TOOLS.length].id : tool, on = o.id === pick, x = x0 + i * (size + gap);
         sticker(g, x, y, on ? size * 1.1 : size, o.icon, { ring: on ? UI.red : null });
         if (wheel) { g.fillStyle = on ? UI.red : UI.ink; g.font = font(15, on ? 700 : 500); g.textAlign = "center"; g.fillText(o.label, x, y + size / 2 + 26); }
       });
       if (!wheel) {
         g.textAlign = "left"; g.font = font(15, 600); g.fillStyle = UI.white;
-        g.fillText(drawing ? "Drawing road... tap to stop" : "Tap: use   ·   Hold: tools", W / 2 + total / 2 + 36, y + 5);
+        g.fillText(drawing ? "Drawing road... tap to stop" : "Tap: use   ·   Hold + let go: next tool   ·   Keys 1-6", W / 2 + total / 2 + 36, y + 5);
       }
     }
     if (Input.held() && holdT > 0.05 && !wheel && !ending) { const p = stage.toScreen(ghost.position.clone().add(new THREE.Vector3(0, 2, 0))); if (p) { g.strokeStyle = "#ffffff"; g.lineWidth = 6; g.beginPath(); g.arc(p.x, p.y, 20, -Math.PI / 2, -Math.PI / 2 + Math.min(1, holdT / HOLD) * Math.PI * 2); g.stroke(); } }
