@@ -66,7 +66,13 @@ function setToast(text) { toast = { text, t: 3.4 }; }
 
 function use(i, j) {
   const before = city.get(i, j);
+  // Bulldozing wild land clears the trees and rocks
+  if (tool === "bulldoze" && !before) {
+    if (terra.clearAt(i, j)) { stats.cleared = (stats.cleared || 0) + 1; puff(i, j, city.topY(i, j)); blip("whoosh"); if (stats.cleared === 1) note("Cleared some wild land."); return true; }
+  }
+  const natural = terra.hasNature(i, j);
   const why = city.place(i, j, tool);
+  if (!why && tool !== "bulldoze" && natural) { terra.clearAt(i, j); stats.cleared = (stats.cleared || 0) + 1; }
   if (why) { if (!drawing) { blip("yuck"); setToast(why); } return false; }
   const after = city.get(i, j);
   if (before && after && before.type === after.type) return false;
@@ -100,7 +106,7 @@ export const worldScene = {
     stats = game.stats = { actions: 0, bulldozed: 0, placed: {}, first: null, firstAt: 0 };
     const w = game.life.world;
     music(lookOf(w.biome, w.look).notes); ambience("quiet");
-    setToast(`Welcome to ${w.name}. Start with a road.`);
+    setToast(`Welcome to ${w.name}. Build anywhere: start with a road.`);
     if (new URLSearchParams(location.search).has("debug")) window.evolWorld = { city: () => city, cursor: () => cursor, setDay: v => { dayT = v; }, grow: n => { for (let k = 0; k < n; k++) city.grow(); },
       build: (type, cellsList) => { const prev = tool; tool = type; for (const [i, j] of cellsList) use(i, j); tool = prev; } };
   },
@@ -143,7 +149,7 @@ export const worldScene = {
       // ----- Cursor -----
       const mx = Math.abs(Input.x) > 0.12 ? Input.x : 0, mz = Math.abs(Input.y) > 0.12 ? Input.y : 0;
       cursor.x += mx * CURSOR_SPEED * dt; cursor.z += mz * CURSOR_SPEED * dt;
-      const r = Math.hypot(cursor.x, cursor.z), lim = BUILD_RADIUS - 1;
+      const r = Math.hypot(cursor.x, cursor.z), lim = BUILD_RADIUS;
       if (r > lim) { cursor.x *= lim / r; cursor.z *= lim / r; }
       cursor.i = Math.round(cursor.x / CELL); cursor.j = Math.round(cursor.z / CELL);
       const k = cursor.i + "," + cursor.j;

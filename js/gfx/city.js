@@ -36,6 +36,7 @@ export function makeCity(world, palette, { onGrow } = {}) {
   const group = new THREE.Group(); group.add(town.group);
   const flats = new Map(); // roads and parks: key -> mesh group
 
+  const lowY = (i, j) => { let lo = Infinity; for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]) lo = Math.min(lo, world.heightAt((i + a) * CELL, (j + b) * CELL)); return lo; };
   const groundY = (i, j) => { let hi = -Infinity; for (const [a, b] of [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5], [0, 0]]) hi = Math.max(hi, world.heightAt((i + a) * CELL, (j + b) * CELL)); return hi; };
   const isWater = (i, j) => groundY(i, j) < 0.35;
 
@@ -44,14 +45,14 @@ export function makeCity(world, palette, { onGrow } = {}) {
     if (flats.has(k)) { group.remove(flats.get(k)); flats.delete(k); }
     const c = get(i, j);
     if (!c || (c.type !== "road" && c.type !== "park")) return;
-    const g = new THREE.Group(), y = Math.max(groundY(i, j), 0.45);
+    const g = new THREE.Group(), y = Math.max(groundY(i, j), 0.45), low = lowY(i, j);
     g.position.set(i * CELL, y, j * CELL);
     const add = (geo, m, x, yy, z, ry = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, yy, z); o.rotation.y = ry; o.receiveShadow = true; o.castShadow = true; g.add(o); return o; };
     if (c.type === "road") {
       if (groundY(i, j) < 0.35) { // bridge over water
         add(new THREE.BoxGeometry(CELL, 0.3, CELL * 0.9), mat(0xd8d0c4), 0, -0.1, 0);
         add(new THREE.CylinderGeometry(0.25, 0.3, 3, 8), mat(0xc8c0b4), 0, -1.6, 0);
-      } else add(new THREE.BoxGeometry(CELL + 0.02, 0.5, CELL + 0.02), mat(0xcfc6b6, 0.95), 0, -0.25, 0); // curb base
+      } else { const bh = y - low + 0.6; add(new THREE.BoxGeometry(CELL + 0.02, bh, CELL + 0.02), mat(0xcfc6b6, 0.95), 0, -bh / 2 + 0.05, 0); } // stone base down to the ground
       add(new THREE.BoxGeometry(CELL, 0.1, CELL), mat(0x5d6068, 0.95), 0, 0.06, 0);
       SIDES.forEach(([a, b]) => {
         if (is(i + a, j + b, "road")) {
@@ -63,7 +64,7 @@ export function makeCity(world, palette, { onGrow } = {}) {
         }
       });
     } else {
-      add(new THREE.BoxGeometry(CELL, 0.2, CELL), mat(0x78bf5a, 1), 0, 0.0, 0);
+      { const bh = y - low + 0.4; add(new THREE.BoxGeometry(CELL, bh, CELL), mat(0x78bf5a, 1), 0, -bh / 2 + 0.1, 0); }
       const n = 1 + Math.floor(hash(i, j) * 2);
       for (let t = 0; t < n; t++) {
         const x = (hash(i, j, t + 1) - 0.5) * 1.6, z = (hash(i, j, t + 5) - 0.5) * 1.6;
@@ -141,7 +142,7 @@ export function makeCity(world, palette, { onGrow } = {}) {
     topY: (i, j) => { const c = get(i, j); if (c && c.level) return town.topY(i, j); return Math.max(groundY(i, j), 0.45) + (c ? 0.2 : 0); },
     /** Put something on a cell. Returns a short reason if it can't go there. */
     place(i, j, type) {
-      if (Math.hypot(i * CELL, j * CELL) > 30) return "Build closer to the middle.";
+      if (Math.hypot(i * CELL, j * CELL) > 96) return "That's the edge of the world.";
       const c = get(i, j);
       if (type === "bulldoze") { if (!c) return "Nothing here."; this.clear(i, j); return null; }
       if (c && c.type === type) return null;

@@ -3,7 +3,8 @@
 // clusters (never sprinkled at random), grass and wildflowers, and a warm low sun with long soft shadows.
 // The same seed always makes the same world. The base biome sets the land and plants; the AI's look recolors it.
 
-import { lookOf } from "./biomes.js";
+import { lookOf, prop } from "./biomes.js";
+import { CELL } from "./town.js";
 
 const THREE = window.THREE;
 
@@ -14,7 +15,7 @@ const SHAPE = {
   harbor: { hills: 6, rough: 0.4, tree: "autumn", lakes: 1, coast: true }, sunset: { hills: 4, rough: 0.3, tree: "palm", lakes: 1, coast: true },
   pines: { hills: 16, rough: 0.6, tree: "pine", lakes: 1, snow: 13 }, jungle: { hills: 9, rough: 0.6, tree: "jungle", lakes: 1 }
 };
-export const BUILD_RADIUS = 30;
+export const BUILD_RADIUS = 95; // how far from the start you can build
 
 function makeNoise(rng) {
   const P = new Uint8Array(512), V = new Float32Array(256);
@@ -91,7 +92,7 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   function heightAt(x, z) {
     const d = Math.hypot(x, z);
     // Gentle near the building ground, fuller hills further out
-    const hillK = 0.25 + 0.75 * smooth((d - BUILD_RADIUS) / 40);
+    const hillK = 0.55 + 0.45 * smooth((d - 20) / 60); // a little gentler where you start, real hills everywhere
     let h = noise((x + ox) * 0.009, (z + oz) * 0.009, 4) * shape.hills * hillK + detail((x + ox) * 0.04, (z + oz) * 0.04, 2) * shape.rough + 1.6;
     if (shape.coast) h -= smooth((x - half * 0.3) / (half * 0.5)) * 12;
     for (const [lx, lz, lr] of lakes) h -= smooth(1 - Math.hypot(x - lx, z - lz) / lr) * 4.5;
@@ -129,8 +130,24 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   const water = new THREE.Mesh(new THREE.PlaneGeometry(size * 3, size * 3), new THREE.MeshStandardMaterial({ color: new THREE.Color(0x5ec4d6).lerp(new THREE.Color(biome.sky[0]), 0.2), transparent: true, opacity: 0.86, roughness: 0.15, metalness: 0.1 }));
   water.rotation.x = -Math.PI / 2; water.position.y = 0; water.receiveShadow = true; group.add(water);
 
+  // Everything already growing or standing in the world, indexed by build cell so building can clear it
+  const nature = new Map();
+  const cellKey = (x, z) => Math.round(x / CELL) + "," + Math.round(z / CELL);
+  const addNature = (obj, x, z) => { const k = cellKey(x, z); if (!nature.has(k)) nature.set(k, []); nature.get(k).push(obj); group.add(obj); };
+  const flowerAt = new Map();
   const api = {
     group, biome, key, heightAt, size, shape,
+    /** Clear trees, rocks and landmarks from a build cell. Returns how many things were removed. */
+    clearAt(i, j) {
+      const k = i + "," + j, list = nature.get(k) || [];
+      for (const o of list) group.remove(o);
+      nature.delete(k);
+      const fl = flowerAt.get(k) || [];
+      for (const n of fl) { flowers.setMatrixAt(n, new THREE.Matrix4().makeScale(0, 0, 0)); }
+      if (fl.length) { flowers.instanceMatrix.needsUpdate = true; flowerAt.delete(k); }
+      return list.length;
+    },
+    hasNature: (i, j) => (nature.get(i + "," + j) || []).length > 0,
     isWater: (x, z) => heightAt(x, z) < 0.15,
     update(dt) { water.position.y = Math.sin(performance.now() / 1400) * 0.03; }
   };
@@ -142,19 +159,19 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   let placed = 0;
   for (let tries = 0; placed < target && tries < target * 12; tries++) {
     const x = (rng() - 0.5) * size * 0.72, z = (rng() - 0.5) * size * 0.72, d = Math.hypot(x, z);
-    if (d < BUILD_RADIUS + 4) continue;
+    if (d < 7) continue; // a little open spot where you arrive
     const h = heightAt(x, z);
     if (h < 0.5 || (shape.snow && h > shape.snow)) continue;
     if (grove(x * 0.018, z * 0.018, 2) < 0.12 && rng() > 0.04) continue; // meadows stay open
     const t = tree(shape.tree, rng, leaf, leaves[1]);
     t.position.set(x, h - 0.1, z); t.rotation.y = rng() * 6.28;
-    group.add(t); placed++;
+    addNature(t, x, z); placed++;
   }
   // A few big rocks, and a scatter near the lake shores
   for (let i = 0; i < 30 * density + (shape.rocks || 0) * 20; i++) {
-    const a = rng() * 6.28, r = BUILD_RADIUS + 6 + rng() * half * 0.6, x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
+    const a = rng() * 6.28, r = 8 + rng() * half * 0.65, x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
     if (h < 0.2) continue;
-    const k = rock(rng, 0xb8afa4); k.position.set(x, h - 0.2, z); group.add(k);
+    const k = rock(rng, 0xb8afa4); k.position.set(x, h - 0.2, z); addNature(k, x, z);
   }
 
   // ----- Grass tufts and wildflowers (instanced, so there can be thousands) -----
@@ -167,18 +184,32 @@ export function makeWorld(key, rng, { size = 320, segments = 160, look = null, d
   for (let tries = 0; tries < 20000 && (gi < grass.count || fi < flowers.count); tries++) {
     const a = rng() * 6.28, r = Math.sqrt(rng()) * half * 0.6, x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
     if (h < 0.45 || (shape.snow && h > shape.snow - 1)) continue;
-    if (grove(x * 0.05 + 30, z * 0.05, 2) < 0.25 || r < BUILD_RADIUS + 8) continue; // flowers grow in patches, away from town
+    if (grove(x * 0.05 + 30, z * 0.05, 2) < 0.25) continue; // flowers grow in patches
     q.setFromEuler(new THREE.Euler((rng() - 0.5) * 0.4, rng() * 6, (rng() - 0.5) * 0.4));
     if (gi < grass.count && rng() < 0.85) {
       const s = 0.7 + rng() * 0.8; sc.set(s, s, s); p.set(x, h - 0.05, z); m4.compose(p, q, sc); grass.setMatrixAt(gi, m4);
       tint.copy(g2).lerp(g1, rng()).multiplyScalar(1.05 + rng() * 0.15); grass.setColorAt(gi++, tint);
     } else if (fi < flowers.count) {
-      sc.set(1, 1, 1); p.set(x, h + 0.35, z); m4.compose(p, q, sc); flowers.setMatrixAt(fi, m4);
+      sc.set(1, 1, 1); p.set(x, h + 0.35, z); m4.compose(p, q, sc); flowers.setMatrixAt(fi, m4); { const ck = cellKey(x, z); if (!flowerAt.has(ck)) flowerAt.set(ck, []); flowerAt.get(ck).push(fi); }
       tint.set(petal[Math.floor(rng() * petal.length)]); flowers.setColorAt(fi++, tint);
     }
   }
   grass.count = gi; flowers.count = fi; grass.receiveShadow = true;
   group.add(grass, flowers);
+
+  // ----- Landmarks: the things your evolution put in this world (the AI's prop mix, or the biome's) -----
+  const skip = new Set(["flower", "fence", "house", "pinkBuilding", "pond", "pool", "roundTree", "fallTree", "pine", "palm", "rock"]);
+  for (const [name, count] of biome.props || []) {
+    if (skip.has(name)) continue;
+    for (let n = 0, tries = 0; n < Math.round(count * 1.6 * density) && tries < count * 20; tries++) {
+      const a = rng() * 6.28, r = 10 + rng() * half * 0.62, x = Math.cos(a) * r, z = Math.sin(a) * r, h = heightAt(x, z);
+      if (h < 0.5) continue;
+      const o = prop(name, rng);
+      o.scale.multiplyScalar(1.5 + rng() * 0.5); o.position.set(x, h - 0.1, z); o.rotation.y = rng() * 6.28;
+      o.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+      addNature(o, x, z); n++;
+    }
+  }
   return api;
 }
 
