@@ -2,7 +2,7 @@
 // The voice is Doki Doki Universe: playful, slightly absurd, kind, and a little too accurate about you.
 
 import { SHAPES, LIMBS, FEATURES, COLORS, REQUESTS } from "../life/schema.js";
-import { BIOMES, BIOME_KEYS, STICKER_IDS, GREETING_IDS } from "../gfx/biomes.js";
+import { BIOMES, BIOME_KEYS, STICKER_IDS, GREETING_IDS, PROP_NAMES, lookOf } from "../gfx/biomes.js";
 import { AXES } from "../core/game.js";
 
 const bodySpec = `{"shape": one of ${JSON.stringify(SHAPES)}, "eyes": 1-4, "limbs": 0-6, "limbType": one of ${JSON.stringify(LIMBS)}, "features": up to 4 of ${JSON.stringify(FEATURES)}}`;
@@ -10,7 +10,7 @@ const axesSpec = `object with one or two keys from ${JSON.stringify(AXES)}, valu
 const VOICE = `Style: playful, warm, a little absurd, like Doki Doki Universe. Never moralize or judge. Plain words a college student would enjoy. No em dashes.`;
 const biomeList = BIOME_KEYS.map(k => `${k} (${BIOMES[k].label})`).join(", ");
 
-/** Evolution: pond behavior in, a creature and three worlds to choose from out. */
+/** Evolution: pond behavior in, a creature and its own tiny world out. */
 export function lifePrompt(traitLines, seed, pastNames) {
   return `You are the evolution engine of Evol. The player just lived 75 seconds as a fish in a pond.
 
@@ -20,17 +20,17 @@ ${traitLines.map(l => "- " + l).join("\n")}
 Seed: ${seed}. Do not reuse: ${pastNames.join(", ") || "none"}.
 
 1. Invent what it evolves into. The body must come from specific pond actions (lost tail: "stumpTail"; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up junk: gears; glowing stone: glow; freed a fish or guarded eggs: frills). Surprising and earned, like a Minecraft seed.
-2. Offer three tiny planets it could move to, each a different biome from: ${biomeList}. Pick biomes that fit different sides of how it lived. Give each a playful name and a one-line pitch that teases the vibe.
+2. Invent the tiny planet it evolved onto. Every life gets its own world, never the same twice, shaped by the creature (what it eats, how it moves, what it survived). Start from a base biome (${biomeList}) for the props, then make it your own: your own sky and ground colors (bright, saturated, toy-like), your own mix of props, a particle color, and a short vibe label. Bold, unexpected combos are good (a pink-sky desert of mushrooms, a mint swamp with lanterns).
 ${VOICE}
 
 JSON only:
 {"creature": {"name": invented species name, "description": one sentence, "because": one sentence starting "Because you" linking two pond moments to the body, "body": ${bodySpec}, "color": one of ${JSON.stringify(COLORS)}},
- "worlds": [3 x {"biome": key, "name": 1-3 words, "pitch": under 16 words}]}`;
+ "world": {"biome": key, "name": 1-3 words, "pitch": one line under 16 words, "look": {"sky": ["#top", "#horizon"], "ground": ["#patch1", "#patch2"], "props": [3-6 x [one of ${JSON.stringify(PROP_NAMES)}, count 2-14]], "particle": "#hex", "night": boolean, "vibe": 2-3 word label like "Neon Swamp"}}}`;
 }
 
 /** The chosen planet, filled with Doki Doki Universe style characters and two quiz moths. */
 export function worldPrompt(life, world, traitLines) {
-  return `Game Evol. A ${life.creature.name} (${life.creature.description}) just moved to the tiny planet "${world.name}" (${BIOMES[world.biome].label}: ${world.pitch}).
+  return `Game Evol. A ${life.creature.name} (${life.creature.description}) evolved onto its own tiny planet "${world.name}" (${lookOf(world.biome, world.look).label}: ${world.pitch}).
 How it lived as a fish: ${traitLines.slice(0, 8).join("; ")}.
 
 Fill the planet like a Doki Doki Universe planet. Every resident has an identity card: what they like and dislike (from a fixed set of summonable stickers), how they like to be greeted, and one request.
@@ -65,7 +65,7 @@ JSON only: {"entry": string, "sticker": string, "note": one sentence}`;
 /** The final reading, Doki Doki style, with the "receipts" for how the doctor figured it out. */
 export function readingPrompt(life, pondLines, log, answers, stats, axes, history) {
   const past = history.map(r => r.reading && r.reading.archetype).filter(Boolean).slice(-8);
-  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, chose the planet ${life.world.name} (${BIOMES[life.world.biome].label}) and spent a day with its residents. You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
+  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, woke up on its own tiny planet ${life.world.name} and spent a day with its residents. You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
 
 As a fish:
 ${pondLines.map(l => "- " + l).join("\n")}

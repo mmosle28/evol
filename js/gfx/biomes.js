@@ -1,6 +1,7 @@
-// Eight tiny worlds, inspired by the Sims "choose a world" circles and TikTok "choose a planet" art.
-// Each biome is just data: sky, ground, props, particles, music. The AI picks which three you're offered
-// (from how you lived as a fish), then fills the one you choose with characters.
+// Eight base worlds, inspired by the Sims world-select circles and TikTok "choose a planet" art:
+// every evolution should land on a world of its own.
+// Each biome is just data: sky, ground, props, particles, music. The AI picks a base biome for your life
+// (from how you lived as a fish) and repaints it with its own colors and props, so no two lives match.
 
 import { mat } from "./models.js";
 
@@ -64,6 +65,14 @@ export const BIOMES = {
 export const BIOME_KEYS = Object.keys(BIOMES);
 
 export function prop(name, rng) { return (P[name] || P.rock)(rng); }
+export const PROP_NAMES = Object.keys(P);
+
+/** A biome with this life's own twist on top (the AI's colors, props and particles). */
+export function lookOf(key, look) {
+  const base = BIOMES[key] || BIOMES.suburb;
+  if (!look) return base;
+  return { ...base, sky: look.sky || base.sky, ground: look.ground || base.ground, props: look.props || base.props, particles: look.particle != null ? { ...base.particles, color: look.particle } : base.particles, label: look.label || base.label, night: look.night != null ? look.night : base.night };
+}
 
 // ---------- Summonable stickers (Doki Doki Universe summons, LittleBigPlanet stickers) ----------
 

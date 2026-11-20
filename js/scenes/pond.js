@@ -152,7 +152,7 @@ export const pondScene = {
     real += rdt;
     sky.update(rdt);
     if (phase === "intro") { follow(rdt, true); if (real > 0.4 && Input.pressed()) phase = "live"; return; }
-    if (phase === "end") { endT += rdt; follow(rdt); if (endT > 1 && Input.pressed()) { game.traits = tr; go("evolving"); } return; }
+    if (phase === "end") { endT += rdt; follow(rdt); if (endT > 3.5 || (endT > 1 && Input.pressed())) { game.traits = tr; go("evolving"); } return; }
 
     const push = Math.hypot(Input.x, Input.y);
     const dt = rdt;
@@ -211,7 +211,7 @@ export const pondScene = {
       g.fillStyle = UI.red; g.font = font(80, 400, FONT.title); g.textAlign = "center";
       g.fillText("Something is changing", W / 2, H / 2 - 10);
       g.fillStyle = UI.ink; g.font = font(24, 700);
-      g.fillText("Your time as a fish is over. Press the button to evolve.", W / 2, H / 2 + 44);
+      g.fillText("Your time as a fish is over. Something is happening...", W / 2, H / 2 + 44);
     }
   }
 };

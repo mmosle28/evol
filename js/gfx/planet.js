@@ -2,7 +2,7 @@
 // two biome colors with a stitched-fabric texture), props and characters stand on the surface.
 // The player always stays on top; the planet turns underneath them.
 
-import { BIOMES, prop } from "./biomes.js";
+import { lookOf, prop } from "./biomes.js";
 
 const THREE = window.THREE;
 const UP = new THREE.Vector3(0, 1, 0);
@@ -26,8 +26,8 @@ function makeNoise(rng) {
   return v => waves.reduce((s, w) => s + Math.sin(v.dot(w.d) * w.f + w.p), 0) / waves.length;
 }
 
-export function makePlanet(key, rng, { R = 20, detail = 4, spots = [], propScale = R / 20, density = 1 } = {}) {
-  const biome = BIOMES[key];
+export function makePlanet(key, rng, { R = 20, detail = 4, spots = [], propScale = R / 20, density = 1, look = null } = {}) {
+  const biome = lookOf(key, look);
   const group = new THREE.Group();
   const noise = makeNoise(rng);
   const amp = R * 0.018;
@@ -102,8 +102,8 @@ export function makePlanet(key, rng, { R = 20, detail = 4, spots = [], propScale
 }
 
 /** Sky for a world: gradient dome, stars and a moon at night, warm light. Returns the lights. */
-export function worldSky(scene, key, { radius = 400 } = {}) {
-  const biome = BIOMES[key];
+export function worldSky(scene, key, { radius = 400, look = null } = {}) {
+  const biome = lookOf(key, look);
   const dome = new THREE.Mesh(new THREE.SphereGeometry(radius, 24, 12), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: { top: { value: new THREE.Color(biome.sky[0]) }, hor: { value: new THREE.Color(biome.sky[1]) } },

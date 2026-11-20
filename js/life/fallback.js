@@ -3,7 +3,7 @@
 
 import { makeRng } from "../core/rng.js";
 import { traitTags } from "./traits.js";
-import { BIOMES, STICKER_IDS, GREETING_IDS, STICKERS } from "../gfx/biomes.js";
+import { BIOMES, STICKER_IDS, GREETING_IDS, STICKERS, PROP_NAMES } from "../gfx/biomes.js";
 import { COLORS } from "./schema.js";
 
 const SYL = ["ko", "ra", "vel", "mo", "thi", "zan", "ul", "pe", "dra", "su", "gor", "lu", "fen", "ka", "ri", "osh", "mi", "to"];
@@ -59,7 +59,16 @@ export function fallbackLife(traits, seed) {
       body: { shape: tags.includes("tailless") ? "round" : tags.includes("explorer") ? "long" : rng.pick(["round", "tall", "blob", "spiky"]), eyes: tags.includes("cautious") ? 3 : 2, limbs: tags.includes("explorer") ? 4 : 2, limbType: tags.includes("tailless") ? "legs" : rng.pick(["legs", "fins", "wings"]), features: features.slice(0, 4) },
       color: rng.pick(COLORS)
     },
-    worlds: picks.slice(0, 3).map(b => ({ biome: b, name: WORLD_NAMES[b], pitch: PITCH[b] }))
+    world: (() => {
+      // Same base world as a similar fish, but never the same look: shift the colors, swap in a surprise prop.
+      const b = rng.chance(0.7) ? picks[0] : picks[1], base = BIOMES[b], dh = rng.range(-0.12, 0.12);
+      const shift = c => "#" + new window.THREE.Color(c).offsetHSL(dh, rng.range(0, 0.15), rng.range(-0.04, 0.06)).getHexString();
+      const props = base.props.map(([n, c]) => [n, Math.max(2, c + rng.int(-2, 3))]);
+      props.push([rng.pick(PROP_NAMES.filter(n => !props.some(p => p[0] === n))), rng.int(3, 8)]);
+      const NOUN = { bayou: ["Hollow", "Bayou", "Marsh"], desert: ["Mesa", "Dunes", "Gulch"], suburb: ["Lane", "Heights", "Court"], spooky: ["Hollow", "Crypt", "Manor"], harbor: ["Cove", "Harbor", "Point"], sunset: ["Strip", "Boulevard", "Beach"], pines: ["Peak", "Ridge", "Woods"], jungle: ["Ruins", "Canopy", "Temple"] };
+      const nm = rng.chance(0.25) ? WORLD_NAMES[b] : `${rng.pick(["Lil", "Old", "Fizzy", "Sleepy", "Lucky", "Velvet", "Tiny", "Gumdrop", "Moonpie", "Crumb", "Jelly", "Wobble"])} ${rng.pick(NOUN[b])}`;
+      return { biome: b, name: nm, pitch: PITCH[b], look: { sky: base.sky.map(shift), ground: base.ground.map(shift), props, particle: shift(base.particles.color), vibe: base.label } };
+    })()
   };
 }
 

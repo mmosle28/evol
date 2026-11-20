@@ -13,7 +13,7 @@ import { W, H, font, wrapText, hint, box, dialogue, sticker, clamp, rect } from 
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
 import { makePlanet, worldSky } from "../gfx/planet.js";
-import { BIOMES, STICKERS, STICKER_IDS, GREETINGS, GREETING_IDS, prop } from "../gfx/biomes.js";
+import { BIOMES, lookOf, STICKERS, STICKER_IDS, GREETINGS, GREETING_IDS, prop } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
 import { blip, music, ambience } from "../core/audio.js";
 
@@ -50,9 +50,9 @@ function build() {
   const mothDirs = [new THREE.Vector3(0.6, -0.2, 0.7).normalize(), new THREE.Vector3(-0.7, 0.1, -0.6).normalize()];
   const homeDir = new THREE.Vector3(0.18, 1, 0.12).normalize();
   spots.push(...mothDirs, homeDir);
-  planet = makePlanet(world.biome, rng, { R, detail: 4, spots, propScale: 1.2, density: 1.3 });
+  planet = makePlanet(world.biome, rng, { R, detail: 4, spots, propScale: 1.2, density: 1.3, look: world.look });
   scene.add(planet.group);
-  worldSky(scene, world.biome);
+  worldSky(scene, world.biome, { look: world.look });
 
   // You
   player = { obj: wrapCreature(game.life.creature.body, BODY_COLORS[game.life.creature.color], 0.75), heading: 0, moving: false, bounce: 0, act: 0 };
@@ -254,7 +254,7 @@ export const planetScene = {
   enter(data) {
     world = data.world || game.world;
     game.world = world;
-    game.life.world = { name: world.name, description: world.description, biome: world.biome };
+    game.life.world = { ...game.life.world, name: world.name, description: world.description };
     game.stats = game.stats || { talks: 0, gossip: 0, cardsRead: 0, cardsBeforeActing: 0, greetRight: 0, greetWrong: 0, liked: 0, pranks: 0, oops: 0, neutral: 0, tosses: 0, tossLoved: 0, tossHated: 0, carries: 0, intros: 0, requestsDone: 0, quizzes: 0 };
     build();
     // Starting stickers: everything someone asks for, plus a few random ones (some loved, some hated)
@@ -398,7 +398,7 @@ export const planetScene = {
   },
 
   draw(g) {
-    const b = BIOMES[world.biome];
+    const b = lookOf(world.biome, world.look);
     // ----- HUD: world sticker, day bar, friends -----
     g.fillStyle = "rgba(43,35,64,0.72)"; rect(g, 24, 20, 320, 96, 26); g.fill();
     sticker(g, 70, 66, 64, "🪐", { tilt: -0.1 });

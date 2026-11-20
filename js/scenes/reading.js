@@ -23,9 +23,9 @@ let view, planet, me, doc, reading, t, sel;
 export const readingScene = {
   enter() {
     const scene = new THREE.Scene();
-    const biome = game.life.world.biome;
-    worldSky(scene, biome);
-    planet = makePlanet(biome, makeRng(game.seed ^ 0x9e3779b9), { R: 7, detail: 3 });
+    const { biome, look } = game.life.world;
+    worldSky(scene, biome, { look });
+    planet = makePlanet(biome, makeRng(game.seed ^ 0x9e3779b9), { R: 7, detail: 3, look, propScale: 0.55 });
     planet.group.position.set(9, -4, 0); scene.add(planet.group);
     me = M.creature(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 3.1, 1); scene.add(me);
     // Dr. Wobble: a round purple doctor with big glasses

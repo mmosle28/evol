@@ -3,7 +3,7 @@
 
 import { AXES } from "../core/game.js";
 import { BODY_COLORS } from "../core/palette.js";
-import { BIOME_KEYS, STICKER_IDS, GREETING_IDS } from "../gfx/biomes.js";
+import { BIOME_KEYS, STICKER_IDS, GREETING_IDS, PROP_NAMES } from "../gfx/biomes.js";
 
 export const SHAPES = ["round", "long", "tall", "blob", "spiky"];
 export const LIMBS = ["legs", "fins", "tentacles", "wings", "none"];
@@ -32,17 +32,24 @@ export function cleanAxes(a) {
   return out;
 }
 
-/** After the pond: your creature, plus three worlds you could move to. */
+const hex = v => (typeof v === "string" && /^#?[0-9a-f]{6}$/i.test(v.trim()) ? parseInt(v.trim().replace("#", ""), 16) : null);
+const pair = v => (Array.isArray(v) && v.length >= 2 && hex(v[0]) != null && hex(v[1]) != null ? [hex(v[0]), hex(v[1])] : null);
+
+/** This life's world look: the AI's own colors and prop mix on top of a base biome. */
+export function cleanLook(l) {
+  if (!l || typeof l !== "object") return null;
+  const props = (Array.isArray(l.props) ? l.props : []).map(p => Array.isArray(p) ? [p[0], p[1]] : [p && p.name, p && p.count])
+    .filter(([n]) => PROP_NAMES.includes(n)).map(([n, c]) => [n, int(c, 1, 16, 6)]).slice(0, 6);
+  return { sky: pair(l.sky), ground: pair(l.ground), props: props.length >= 3 ? props : null, particle: hex(l.particle), label: str(l.vibe, null, 28), night: typeof l.night === "boolean" ? l.night : null };
+}
+
+/** After the pond: your creature, and the one world it evolved into. */
 export function cleanLife(x) {
-  if (!x || typeof x !== "object" || !x.creature) throw new Error("bad life");
-  const c = x.creature;
-  const seen = new Set();
-  const worlds = (Array.isArray(x.worlds) ? x.worlds : []).map(w => ({ biome: oneOf(w && w.biome, BIOME_KEYS, ""), name: str(w && w.name, "", 30), pitch: str(w && w.pitch, "", 120) }))
-    .filter(w => w.biome && w.name && !seen.has(w.biome) && seen.add(w.biome)).slice(0, 3);
-  if (worlds.length < 3) throw new Error("need three worlds");
+  if (!x || typeof x !== "object" || !x.creature || !x.world) throw new Error("bad life");
+  const c = x.creature, w = x.world;
   return {
     creature: { name: str(c.name, "Unnamed", 28), description: str(c.description, "A new kind of creature.", 200), because: str(c.because, "", 220), body: cleanBody(c.body), color: oneOf(c.color, COLORS, "tangerine") },
-    worlds
+    world: { biome: oneOf(w.biome, BIOME_KEYS, "suburb"), name: str(w.name, "Somewhere New", 30), pitch: str(w.pitch, "", 140), look: cleanLook(w.look) }
   };
 }
 

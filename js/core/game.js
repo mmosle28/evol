@@ -1,6 +1,6 @@
 // Shared game state and the scene state machine.
 //
-// States: title -> pond -> evolving -> choose (pick a planet) -> planet (sandbox day) -> diary -> reading
+// States: title -> pond -> evolving (one transition: cocoon, hatch, your world grows) -> planet (sandbox day) -> diary -> reading
 //         -> pond (new life) or title. Talking, greeting, stickers, identity cards, carrying and quizzes
 //         are overlay modes inside the planet scene, not separate states.
 
@@ -26,7 +26,7 @@ export const game = {
 };
 
 export function newRun(seed = newSeed()) {
-  Object.assign(game, { runId: "life-" + Date.now().toString(36), seed, traits: null, life: null, day: 1, log: [], answers: [], diary: [], bag: {}, history: loadHistory(), world: null, choice: null, stats: null, stickers: [] });
+  Object.assign(game, { runId: "life-" + Date.now().toString(36), seed, traits: null, life: null, day: 1, log: [], answers: [], diary: [], bag: {}, history: loadHistory(), world: null, stats: null, stickers: [] });
   game.axes = Object.fromEntries(AXES.map(a => [a, 0]));
 }
 

@@ -1,13 +1,13 @@
 # Evol
 
 You start as a fish. What you do in the pond decides what you evolve into, which tiny world you move to,
-and what its residents (and a very nosy doctor) figure out about you.
+the tiny world that grows around you, and what its residents (and a very nosy doctor) figure out about you.
 
 Evol mixes three inspirations: **Doki Doki Universe** (tiny planets full of residents with likes, dislikes and
 requests, summoned stickers, quiz asteroids and a personality doctor), **LittleBigPlanet** (a handmade craft-box
-look: felt, cardboard, stitched panels and a sticker menu), and the **"choose a world"** planets from the Sims
-world-select screen and TikTok planet edits. Every life is different, like a Minecraft seed: the pond is generated
-from a seed, and an AI turns how you played into a new creature, three worlds to choose from, and the residents of the one you pick.
+look: felt, cardboard, stitched panels and a sticker menu), and the Sims world-select circles and TikTok "choose a planet" edits, which show how every
+world can look completely different. Every life is different, like a Minecraft seed: the pond is generated
+from a seed, and an AI turns how you played into a new creature, its own one-of-a-kind world (base biome, colors, props, mood), and that world's residents.
 
 Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 
@@ -19,17 +19,16 @@ Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 | Bite, interact, confirm | Space or Enter | Press the joystick down (its button) |
 
 1. **The pond (75 s).** You're a small fish. Eat pondweed, bugs or minnows; pick things up; hide in reeds. Bite the pike from behind and it flees, head-on and it bites back. A heron can take your tail. Each seed picks 4 random events: a frog, a turtle you can hide under, fish eggs and a crayfish raiding them, a kid's net, a baited hook (mash to escape), a fish tangled in fishing line you can free, or a rain shower full of bugs.
-2. **Evolving.** The game lists what you did, then the AI reveals what you became and why.
-3. **Choose a world.** Three tiny planets float in space (Bayou, Desert Mesa, Candy Suburb, Moonlit Hollow, Maple Harbor, Sunset Strip, Pine Peaks or Jungle Ruins), picked from how you lived. Your choice counts too.
-4. **The planet.** Walk all the way around a tiny planet; it turns under your feet. Walk up to a resident and press the button:
+2. **Evolving (one transition, no menus).** Your fish spins into a felt cocoon in space while your pond moments drift past. It hatches into what you earned, then your own tiny world grows under your feet, prop by prop, and the camera dives down to land you there. The AI starts from one of 8 base biomes (bayou, desert, suburb, spooky, harbor, sunset, pines, jungle) and repaints it with its own sky, ground, props and particles, so no two lives look alike.
+3. **The planet.** Walk all the way around a tiny planet; it turns under your feet. Walk up to a resident and press the button:
    - **Talk:** first meeting reveals their request; after that they gossip about the neighbors ("never show Bo a rain cloud").
    - **Greet:** wave, bow, blow a kiss or dance. Everyone has a favorite.
    - **Sticker:** summon a sticker on the moment (puppy, ghost, cake, poop...). Loved ones win hearts; hated ones don't.
    - **Pick up:** carry them. Throw them into the sky, or set them down next to someone to introduce them.
    - **Card:** their identity card. Likes, dislikes and greeting start as ❔ and fill in as you learn.
    Finish a request and they give you a present: new stickers. Two quiz moths float nearby with odd picture questions. Sleep in your tent when the sun runs out.
-5. **Diary.** A page with a photo of the day and a sticker naming who you were.
-6. **Dr. Wobble's reading.** An archetype, three observations, and the receipts: the exact moments the reading is based on. Then live another life.
+4. **Diary.** A page with a photo of the day and a sticker naming who you were.
+5. **Dr. Wobble's reading.** An archetype, three observations, and the receipts: the exact moments the reading is based on. Then live another life.
 
 There's no single win. You win a life by surviving the pond and making friends (4+ hearts) and finishing requests on your planet.
 Lose conditions in the pond (bitten, hooked, netted, tail lost) don't end the game; they change what you become.
@@ -43,8 +42,7 @@ stateDiagram-v2
     [*] --> Title
     Title --> Pond: button
     Pond --> Evolving: life timer ends
-    Evolving --> Choose: creature built, button
-    Choose --> Planet: pick a world (AI writes its residents)
+    Evolving --> Planet: cocoon hatches, world grows, camera dives in
     Planet --> Diary: sleep in your tent, or the sun runs out
     Diary --> Reading: turn the page
     Reading --> Pond: live another life (new seed)
@@ -62,8 +60,8 @@ All prompts are in `js/ai/prompts.js`. The AI runs through Claude on claude.ai (
 
 | Moment | What the AI decides |
 |---|---|
-| Evolving | Creature body, color and name, why you became it, and three worlds that fit different sides of how you lived |
-| Choosing a world | The residents: personalities, identity cards (likes, dislikes, greeting), requests, every line they say, and two quiz moths with picture questions that score personality |
+| Evolving (1) | Creature body, color and name, why you became it, and its own world: base biome, name, sky and ground colors, prop mix, particles, vibe |
+| Evolving (2) | The residents: personalities, identity cards (likes, dislikes, greeting), requests, every line they say, and two quiz moths with picture questions that score personality |
 | Night | The diary page and the day's sticker |
 | The end | Dr. Wobble's archetype, three observations, the receipts, and a question, never repeating past lives |
 
@@ -98,7 +96,7 @@ js/ai/prompts.js           every prompt
 js/life/schema.js          validates whatever the AI returns
 js/life/traits.js          pond actions -> sentences and personality
 js/life/fallback.js        offline creature, worlds, residents, quizzes, diary, reading
-js/scenes/*.js             title, pond, evolving, choose, planet, diary, reading
+js/scenes/*.js             title, pond, evolving, planet, diary, reading
 js/vendor/three.min.js     Three.js r128 (MIT)
 arduino/, bridge/          controller sketch and joystick bridge
 ```
