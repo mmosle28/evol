@@ -1,5 +1,5 @@
 // The reading: Dr. Wobble (the game's Doctor Therapist, from Doki Doki Universe) tells you who you were
-// this life. It reads the pond, the planet, how you treated each resident, and your quiz answers, then shows
+// this life. It reads the pond, your world, how you treated each resident, and your quiz answers, then shows
 // its "receipts": the exact moments it based the reading on. Never repeats an archetype from past lives.
 
 import { Input } from "../core/input.js";
@@ -8,7 +8,8 @@ import { stage, makeCamera } from "../core/stage.js";
 import { W, H, font, wrapText, box, hint, clamp, rect, sticker } from "../core/draw.js";
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
-import { makePlanet, worldSky } from "../gfx/planet.js";
+import { worldSky } from "../gfx/planet.js";
+import { makeWorld } from "../gfx/terrain.js";
 import * as M from "../gfx/models.js";
 import { askJSON } from "../ai/claude.js";
 import { readingPrompt } from "../ai/prompts.js";
@@ -25,15 +26,17 @@ export const readingScene = {
     const scene = new THREE.Scene();
     const { biome, look } = game.life.world;
     worldSky(scene, biome, { look });
-    planet = makePlanet(biome, makeRng(game.seed ^ 0x9e3779b9), { R: 7, detail: 3, look, propScale: 0.55 });
-    planet.group.position.set(9, -4, 0); scene.add(planet.group);
-    me = M.creature(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 3.1, 1); scene.add(me);
+    // Your world as a little diorama on the doctor's desk
+    planet = makeWorld(biome, makeRng(game.seed ^ 0x9e3779b9), { look, density: 2, segments: 70 });
+    planet.group.children[1].visible = false;
+    planet.group.scale.setScalar(0.06); planet.group.position.set(9, 0, 0); scene.add(planet.group);
+    me = M.creature(game.life.creature.body, { scale: 0.7, color: BODY_COLORS[game.life.creature.color] }); me.position.set(7.5, 0.4, 3); scene.add(me);
     // Dr. Wobble: a round purple doctor with big glasses
     doc = new THREE.Group();
     const body = new THREE.Mesh(new THREE.IcosahedronGeometry(1.3, 1), M.mat(0xb07aff)); body.position.y = 1.3; doc.add(body);
     for (const s of [-1, 1]) { const lens = new THREE.Mesh(new THREE.TorusGeometry(0.32, 0.07, 5, 12), M.mat(0x2b2340)); lens.position.set(s * 0.42, 1.65, 1.2); doc.add(lens); const eye = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 4), M.mat(0x2b2340)); eye.position.set(s * 0.42, 1.65, 1.15); doc.add(eye); }
     const coat = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.4, 1.1, 8), M.mat(0xffffff)); coat.position.y = 0.6; doc.add(coat);
-    doc.position.set(11, 2.9, -1); doc.rotation.y = -0.6; scene.add(doc);
+    doc.position.set(12, 0.2, 1); doc.rotation.y = -0.6; scene.add(doc);
     const camera = makeCamera(40); camera.position.set(2, 5, 24); camera.lookAt(2, 2.5, 0);
     view = { scene, camera }; stage.view = view;
     t = 0; sel = 0; reading = null;
@@ -49,10 +52,10 @@ export const readingScene = {
     });
   },
   update(dt) {
-    t += dt; planet.update(dt);
-    planet.group.rotation.y += dt * 0.2;
+    t += dt;
+    planet.group.rotation.y += dt * 0.15;
     me.rotation.y = -0.4 + Math.sin(t * 0.6) * 0.3; M.animateCreature(me, t, false);
-    doc.position.y = 2.9 + Math.abs(Math.sin(t * 2)) * 0.25;
+    doc.position.y = 0.2 + Math.abs(Math.sin(t * 2)) * 0.25;
     if (!reading || t < 1.5) return;
     const tap = Input.tapped();
     if (tap.x) sel = tap.x > 0 ? 1 : 0;

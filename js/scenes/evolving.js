@@ -8,7 +8,8 @@ import { stage, makeCamera } from "../core/stage.js";
 import { W, H, font, wrapText, clamp, easeOut, rect } from "../core/draw.js";
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
-import { makePlanet } from "../gfx/planet.js";
+import { worldSky } from "../gfx/planet.js";
+import { makeWorld } from "../gfx/terrain.js";
 import { lookOf } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
 import { askJSON } from "../ai/claude.js";
@@ -20,8 +21,8 @@ import { blip, ambience } from "../core/audio.js";
 import { Input } from "../core/input.js";
 
 const THREE = window.THREE;
-const R = 8;
-let view, dome, fish, cocoon, shards, critter, planet, pops, t, phase, phaseT, lines, life, world, fromAI, flash;
+const DROP = -30; // your world appears far below you
+let view, dome, stars, fish, cocoon, shards, critter, planet, pops, t, phase, phaseT, lines, life, world, fromAI, flash;
 
 function build() {
   const scene = new THREE.Scene();
@@ -35,7 +36,7 @@ function build() {
   const N = 700, arr = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) { const d = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize().multiplyScalar(250); arr.set([d.x, d.y, d.z], i * 3); }
   const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(arr, 3));
-  scene.add(new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false })));
+  stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false })); scene.add(stars);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x6a4a9a, 0.95));
   const sun = new THREE.DirectionalLight(0xfff0dc, 0.8); sun.position.set(20, 30, 40); scene.add(sun);
 
@@ -86,27 +87,27 @@ export const evolvingScene = {
       critter.rotation.y += dt * 1.2; M.animateCreature(critter, t, false);
       if (phaseT > 2.8) grow();
     } else if (phase === "grow" || phase === "wait") {
-      // Your world grows under your feet: the planet swells, then the props pop up one by one
-      const k = easeOut(clamp(phaseT / 2.2, 0, 1));
-      planet.group.scale.setScalar(Math.max(0.02, k));
-      planet.group.position.y = -R * Math.max(0.02, k);
-      planet.group.rotation.y += dt * 0.25;
-      planet.update(dt);
-      pops.forEach((p, i) => { const pk = clamp((phaseT - 1.2 - i * 0.05) / 0.35, 0, 1); p.obj.scale.copy(p.s).multiplyScalar(easeOut(pk) * (1 + Math.sin(pk * Math.PI) * 0.3)); if (pk > 0 && !p.popped) { p.popped = true; if (i % 4 === 0) blip("pop"); } });
+      // Your world rises out of nothing far below you: hills swell up, then forests and houses pop in
+      const k = easeOut(clamp(phaseT / 2.4, 0, 1));
+      planet.group.scale.y = Math.max(0.02, k);
+      planet.update(dt, critter.position);
+      pops.forEach((p, i) => { const pk = clamp((phaseT - 1.4 - i / pops.length * 2) / 0.35, 0, 1); p.obj.scale.copy(p.s).multiplyScalar(easeOut(pk) * (1 + Math.sin(pk * Math.PI) * 0.3)); if (pk > 0 && !p.popped) { p.popped = true; if (i % 9 === 0) blip("pop"); } });
       for (const sh of shards) { sh.position.addScaledVector(sh.userData.v, dt); sh.userData.v.multiplyScalar(0.97); }
-      critter.position.y = Math.max(0, 2 - phaseT * 1.5); critter.rotation.y += dt * 0.6; M.animateCreature(critter, t, false);
-      dome.material.uniforms.a.value.lerp(new THREE.Color(lookOf(life.world.biome, life.world.look).sky[1]).multiplyScalar(0.6), dt * 0.8);
-      cam.position.lerp(new THREE.Vector3(Math.sin(t * 0.2) * 6, 3, 32), dt * 1.2); cam.lookAt(0, -1, 0);
-      if (phase === "grow" && phaseT > 2.2 + pops.length * 0.05 + 1.2) setPhase("wait");
-      if (phase === "wait" && world && phaseT > 1.5) { setPhase("dive"); blip("whoosh"); }
+      // You float down toward the clearing in the middle
+      critter.position.y = Math.max(DROP + 2.2, critter.position.y - dt * 7); critter.rotation.y += dt * 0.6; M.animateCreature(critter, t, false);
+      cam.position.lerp(new THREE.Vector3(Math.sin(t * 0.15) * 20, 22, 80), dt * 1.0); cam.lookAt(0, DROP + 2, -10);
+      if (phase === "grow" && phaseT > 4.4) setPhase("wait");
+      if (phase === "wait" && world && phaseT > 1.2) { setPhase("dive"); blip("whoosh"); }
       return;
     } else if (phase === "dive") {
-      // Swoop down onto the top of your world
-      const k = easeOut(clamp(phaseT / 1.6, 0, 1));
-      cam.position.lerp(new THREE.Vector3(0, 6, 10), k * 0.25); cam.lookAt(0, 0.5 * k - 3 * (1 - k), 0);
-      planet.update(dt); M.animateCreature(critter, t, false);
-      flash = clamp((phaseT - 1.1) / 0.5, 0, 1);
-      if (phaseT > 1.6) go("planet", { world });
+      // Swoop down to just behind you, ground level, where the game picks up
+      const k = easeOut(clamp(phaseT / 1.8, 0, 1));
+      critter.position.y = DROP + 2.2; critter.rotation.y += (Math.PI - critter.rotation.y) * Math.min(1, dt * 4);
+      cam.position.lerp(new THREE.Vector3(0, DROP + 2.2 + 4.2, 9), Math.min(1, dt * 3));
+      cam.lookAt(0, DROP + 2.2 + 1.4, -6 * k);
+      planet.update(dt, critter.position); M.animateCreature(critter, t, false);
+      flash = clamp((phaseT - 1.4) / 0.4, 0, 1) * 0.9;
+      if (phaseT > 1.8) go("world", { world });
       return;
     }
     cam.position.x = Math.sin(t * 0.3) * 2; cam.lookAt(0, 1, 0);
@@ -167,10 +168,14 @@ function hatch() {
 
 function grow() {
   setPhase("grow"); blip("whoosh");
-  planet = makePlanet(life.world.biome, makeRng(game.seed ^ 0x9e3779b9), { R, detail: 4, look: life.world.look, propScale: 0.6 });
-  planet.group.scale.setScalar(0.02); planet.group.position.y = -R * 0.02;
+  // The same seed as the world you're about to walk in, so what you see from the sky is where you land
+  planet = makeWorld(life.world.biome, makeRng(game.seed ^ 0x9e3779b9), { look: life.world.look, density: 2.5, segments: 90 });
+  planet.group.position.y = DROP; planet.group.scale.y = 0.02;
   view.scene.add(planet.group);
+  dome.visible = false; stars.visible = false;
+  worldSky(view.scene, life.world.biome, { look: life.world.look });
+  view.scene.fog = new THREE.Fog(planet.biome.sky[1], 160, 420);
   // Every prop starts at zero size and pops up in turn
   planet.group.children.forEach(c => { if (c.isGroup) { pops.push({ obj: c, s: c.scale.clone() }); c.scale.setScalar(0.001); } });
-  pops.sort(() => Math.random() - 0.5);
+  pops.sort((a, b) => Math.hypot(a.obj.position.x, a.obj.position.z) - Math.hypot(b.obj.position.x, b.obj.position.z));
 }

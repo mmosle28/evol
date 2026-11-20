@@ -103,7 +103,7 @@ export function fallbackWorld(world, seed) {
 export function fallbackDiary(log) {
   const things = log.slice(-4).map(l => l.text[0].toLowerCase() + l.text.slice(1).replace(/\.$/, ""));
   return {
-    entry: `Day one. ${things.length ? "Today I " + things.join(", then I ") + "." : "Today I mostly walked around the whole planet. It only took a minute."} Everyone here is a little strange. I think I like it.`,
+    entry: `Day one. ${things.length ? "Today I " + things.join(", then I ") + "." : "Today I mostly explored. The hills go on forever."} Everyone here is a little strange. I think I like it.`,
     sticker: "The New Kid",
     note: "You collect people the way other creatures collect shiny rocks."
   };
@@ -118,7 +118,7 @@ export function fallbackReading(axes, stats) {
   if (stats.tosses) receipts.push(`You threw ${stats.tosses} resident${stats.tosses > 1 ? "s" : ""} into the sky.`);
   if (stats.requestsDone) receipts.push(`You finished ${stats.requestsDone} request${stats.requestsDone > 1 ? "s" : ""}.`);
   if (stats.greetRight) receipts.push(`You greeted ${stats.greetRight} resident${stats.greetRight > 1 ? "s" : ""} exactly how they like.`);
-  while (receipts.length < 3) receipts.push(["You took your time in the pond.", "You picked a planet in a few seconds.", "You answered the moths without stalling."][receipts.length]);
+  while (receipts.length < 3) receipts.push(["You took your time in the pond.", "You walked straight into a world you had never seen.", "You answered the moths without stalling."][receipts.length]);
   return {
     archetype: `The ${names[top[0][0]]}`,
     lines: [

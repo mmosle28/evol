@@ -30,7 +30,7 @@ export const diaryScene = {
   update(dt) {
     t += dt;
     if (page && t > 1 && Input.pressed()) {
-      if (game.day < DAYS) { game.day++; go("planet", { world: game.world }); }
+      if (game.day < DAYS) { game.day++; go("world", { world: game.world }); }
       else go("reading");
     }
   },

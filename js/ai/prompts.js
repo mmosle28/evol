@@ -20,7 +20,7 @@ ${traitLines.map(l => "- " + l).join("\n")}
 Seed: ${seed}. Do not reuse: ${pastNames.join(", ") || "none"}.
 
 1. Invent what it evolves into. The body must come from specific pond actions (lost tail: "stumpTail"; bit the pike: horns or spikes; hid a lot: shell or extra eyes; picked up junk: gears; glowing stone: glow; freed a fish or guarded eggs: frills). Surprising and earned, like a Minecraft seed.
-2. Invent the tiny planet it evolved onto. Every life gets its own world, never the same twice, shaped by the creature (what it eats, how it moves, what it survived). Start from a base biome (${biomeList}) for the props, then make it your own: your own sky and ground colors (bright, saturated, toy-like), your own mix of props, a particle color, and a short vibe label. Bold, unexpected combos are good (a pink-sky desert of mushrooms, a mint swamp with lanterns).
+2. Invent the open world it evolved into, like a Minecraft seed: hills, valleys, lakes and forests, ringed by ocean. Every life gets its own world, never the same twice, shaped by the creature (what it eats, how it moves, what it survived). Start from a base biome (${biomeList}) for the props, then make it your own: your own sky and ground colors (bright, saturated, toy-like), your own mix of props, a particle color, and a short vibe label. Bold, unexpected combos are good (a pink-sky desert of mushrooms, a mint swamp with lanterns).
 ${VOICE}
 
 JSON only:
@@ -28,18 +28,18 @@ JSON only:
  "world": {"biome": key, "name": 1-3 words, "pitch": one line under 16 words, "look": {"sky": ["#top", "#horizon"], "ground": ["#patch1", "#patch2"], "props": [3-6 x [one of ${JSON.stringify(PROP_NAMES)}, count 2-14]], "particle": "#hex", "night": boolean, "vibe": 2-3 word label like "Neon Swamp"}}}`;
 }
 
-/** The chosen planet, filled with Doki Doki Universe style characters and two quiz moths. */
+/** Your world, filled with Doki Doki Universe style characters and two quiz moths. */
 export function worldPrompt(life, world, traitLines) {
-  return `Game Evol. A ${life.creature.name} (${life.creature.description}) evolved onto its own tiny planet "${world.name}" (${lookOf(world.biome, world.look).label}: ${world.pitch}).
+  return `Game Evol. A ${life.creature.name} (${life.creature.description}) evolved into its own open world "${world.name}" (${lookOf(world.biome, world.look).label}: ${world.pitch}).
 How it lived as a fish: ${traitLines.slice(0, 8).join("; ")}.
 
-Fill the planet like a Doki Doki Universe planet. Every resident has an identity card: what they like and dislike (from a fixed set of summonable stickers), how they like to be greeted, and one request.
+Fill the village where it spawns like a Doki Doki Universe planet. Every resident has an identity card: what they like and dislike (from a fixed set of summonable stickers), how they like to be greeted, and one request.
 - 4 residents who fit this biome, each with a vivid personality and a small problem.
 - likes and dislikes: 2 each from ${JSON.stringify(STICKER_IDS)}. Make some funny contrasts (one resident adores ghosts, another is terrified of them).
 - greeting: one of ${JSON.stringify(GREETING_IDS)}.
 - request.type: one of ${JSON.stringify(REQUESTS)}. sticker = wants to be shown one of their likes (target = that sticker id); bring = wants to meet another resident, the player must carry them over (target = that resident's index 0-3); fly = wants to be thrown into the sky; greet = wants a proper greeting. Use at least three different types.
 - lines, all in their own voice: hello (first meeting, under 20 words), ask (their request, hinting at what they need without naming the sticker id, under 24 words), thanks (under 16 words), liked (reaction to a sticker they love, under 10 words), disliked (to one they hate, under 10 words), tossed (when picked up and thrown, under 10 words).
-- 2 quiz moths (tiny monks floating near the planet, like Doki Doki Universe asteroid quizzes). Each asks 3 picture questions: everyday and slightly absurd ("What are the rats doing in this picture?", "Without thinking, pick a picture", "Choose a caption"). Each question has a "pic" of 1 to 3 emoji, and 3 answers, each with its own emoji "pic", a short "text", an "axes" score (${axesSpec}) and the moth's one-line "reply".
+- 2 quiz moths (tiny monks floating on rocks near the village, like Doki Doki Universe asteroid quizzes). Each asks 3 picture questions: everyday and slightly absurd ("What are the rats doing in this picture?", "Without thinking, pick a picture", "Choose a caption"). Each question has a "pic" of 1 to 3 emoji, and 3 answers, each with its own emoji "pic", a short "text", an "axes" score (${axesSpec}) and the moth's one-line "reply".
 ${VOICE}
 
 JSON only:
@@ -50,10 +50,10 @@ JSON only:
 
 /** Tonight's diary page, with a Doki Doki sticker. */
 export function diaryPrompt(life, todayLog, answers, axes) {
-  return `Game Evol. Write tonight's diary page for a ${life.creature.name} after its first day on the tiny planet ${life.world.name}.
+  return `Game Evol. Write tonight's diary page for a ${life.creature.name} after its first day in its new world, ${life.world.name}.
 
 What happened today:
-${todayLog.map(l => "- " + l).join("\n") || "- mostly wandered around the planet"}
+${todayLog.map(l => "- " + l).join("\n") || "- mostly explored"}
 Odd questions answered: ${answers.map(a => `"${a.question}" -> "${a.answer}"`).join("; ") || "none"}
 
 Diary: first person, like a kid's diary: simple, sincere, small sensory details, 3 to 5 short sentences about the real events above, naming the residents.
@@ -65,11 +65,11 @@ JSON only: {"entry": string, "sticker": string, "note": one sentence}`;
 /** The final reading, Doki Doki style, with the "receipts" for how the doctor figured it out. */
 export function readingPrompt(life, pondLines, log, answers, stats, axes, history) {
   const past = history.map(r => r.reading && r.reading.archetype).filter(Boolean).slice(-8);
-  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, woke up on its own tiny planet ${life.world.name} and spent a day with its residents. You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
+  return `Game Evol. The player lived as a fish, evolved into a ${life.creature.name}, woke up in its own open world ${life.world.name} and spent a day with its residents. You are Dr. Wobble, the game's cheerful personality doctor (like Doctor Therapist in Doki Doki Universe).
 
 As a fish:
 ${pondLines.map(l => "- " + l).join("\n")}
-On the planet:
+In the world:
 ${log.map(l => "- " + l.text).join("\n") || "- not much"}
 How they treated people: ${JSON.stringify(stats)}
 Quiz answers: ${answers.map(a => `"${a.question}" -> "${a.answer}"`).join("; ") || "none"}

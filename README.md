@@ -1,13 +1,13 @@
 # Evol
 
 You start as a fish. What you do in the pond decides what you evolve into, which tiny world you move to,
-the tiny world that grows around you, and what its residents (and a very nosy doctor) figure out about you.
+the world that grows around you, and what its residents (and a very nosy doctor) figure out about you.
 
 Evol mixes three inspirations: **Doki Doki Universe** (tiny planets full of residents with likes, dislikes and
 requests, summoned stickers, quiz asteroids and a personality doctor), **LittleBigPlanet** (a handmade craft-box
 look: felt, cardboard, stitched panels and a sticker menu), and the Sims world-select circles and TikTok "choose a planet" edits, which show how every
 world can look completely different. Every life is different, like a Minecraft seed: the pond is generated
-from a seed, and an AI turns how you played into a new creature, its own one-of-a-kind world (base biome, colors, props, mood), and that world's residents.
+from a seed, and an AI turns how you played into a new creature, its own open world generated from the seed (terrain, lakes, forests, colors, props, mood), and that world's residents.
 
 Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 
@@ -19,8 +19,8 @@ Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 | Bite, interact, confirm | Space or Enter | Press the joystick down (its button) |
 
 1. **The pond (75 s).** You're a small fish. Eat pondweed, bugs or minnows; pick things up; hide in reeds. Bite the pike from behind and it flees, head-on and it bites back. A heron can take your tail. Each seed picks 4 random events: a frog, a turtle you can hide under, fish eggs and a crayfish raiding them, a kid's net, a baited hook (mash to escape), a fish tangled in fishing line you can free, or a rain shower full of bugs.
-2. **Evolving (one transition, no menus).** Your fish spins into a felt cocoon in space while your pond moments drift past. It hatches into what you earned, then your own tiny world grows under your feet, prop by prop, and the camera dives down to land you there. The AI starts from one of 8 base biomes (bayou, desert, suburb, spooky, harbor, sunset, pines, jungle) and repaints it with its own sky, ground, props and particles, so no two lives look alike.
-3. **The planet.** Walk all the way around a tiny planet; it turns under your feet. Walk up to a resident and press the button:
+2. **Evolving (one transition, no menus).** Your fish spins into a felt cocoon in space while your pond moments drift past. It hatches into what you earned, then your own open world rises out of nothing far below you, hills first, then forests and houses popping in outward from the middle, and the camera dives down to land you in the clearing. The AI starts from one of 8 base biomes (bayou, desert, suburb, spooky, harbor, sunset, pines, jungle) and repaints it with its own sky, ground, props and particles. The terrain (hills, valleys, lakes, mountains, coastline) comes from the seed, like Minecraft, so no two lives look alike.
+3. **Your world.** Explore it in third person: up walks, left/right turns. Water and the ocean at the edge stop you. The residents live in the clearing where you land. Walk up to one and press the button:
    - **Talk:** first meeting reveals their request; after that they gossip about the neighbors ("never show Bo a rain cloud").
    - **Greet:** wave, bow, blow a kiss or dance. Everyone has a favorite.
    - **Sticker:** summon a sticker on the moment (puppy, ghost, cake, poop...). Loved ones win hearts; hated ones don't.
@@ -30,7 +30,7 @@ Built for the IEEE CS Game Sprint, KSU AI Club Hackathon 2026, by Micah Mosley.
 4. **Diary.** A page with a photo of the day and a sticker naming who you were.
 5. **Dr. Wobble's reading.** An archetype, three observations, and the receipts: the exact moments the reading is based on. Then live another life.
 
-There's no single win. You win a life by surviving the pond and making friends (4+ hearts) and finishing requests on your planet.
+There's no single win. You win a life by surviving the pond and making friends (4+ hearts) and finishing requests in your world.
 Lose conditions in the pond (bitten, hooked, netted, tail lost) don't end the game; they change what you become.
 
 `?quick` shortens the pond and the day for demos. `?debug` exposes the state machine as `window.evol` for testing.
@@ -42,14 +42,14 @@ stateDiagram-v2
     [*] --> Title
     Title --> Pond: button
     Pond --> Evolving: life timer ends
-    Evolving --> Planet: cocoon hatches, world grows, camera dives in
-    Planet --> Diary: sleep in your tent, or the sun runs out
+    Evolving --> World: cocoon hatches, world grows, camera dives in
+    World --> Diary: sleep in your tent, or the sun runs out
     Diary --> Reading: turn the page
     Reading --> Pond: live another life (new seed)
     Reading --> Title: back to title
 ```
 
-Inside Planet, the interaction menu, greetings, stickers, identity cards, carrying, quizzes and the sleep prompt are
+Inside World, the interaction menu, greetings, stickers, identity cards, carrying, quizzes and the sleep prompt are
 overlay modes (walk, menu, greet, stickers, card, talk, carry, quiz, home), not separate states.
 Every frame: read input → update the scene → render 3D → draw the 2D overlay.
 
@@ -85,18 +85,19 @@ js/core/stage.js           Three.js renderer, screen projection, snapshots
 js/core/input.js           keyboard, gamepad, Arduino (Web Serial)
 js/core/palette.js         colors and fonts (felt, cardboard, sticker colors)
 js/core/draw.js            overlay UI: stitched panels, stickers, dialogue, labels
-js/core/audio.js           synthesized water, blips and a music box per planet
+js/core/audio.js           synthesized water, blips and a music box per world
 js/core/rng.js, store.js   seeded random, saved lives
 js/gfx/models.js           every low-poly model, built in code
 js/gfx/sky.js              sky for the pond and evolving scenes
 js/gfx/biomes.js           the 8 worlds, their props, stickers and greetings
-js/gfx/planet.js           tiny walkable planet, felt ground, world skies
+js/gfx/terrain.js          open world from a seed: noise terrain, water, clustered props
+js/gfx/planet.js           felt texture, world skies (and the small planets on the title)
 js/ai/claude.js            AI call with timeout, validation and fallback
 js/ai/prompts.js           every prompt
 js/life/schema.js          validates whatever the AI returns
 js/life/traits.js          pond actions -> sentences and personality
 js/life/fallback.js        offline creature, worlds, residents, quizzes, diary, reading
-js/scenes/*.js             title, pond, evolving, planet, diary, reading
+js/scenes/*.js             title, pond, evolving, world, diary, reading
 js/vendor/three.min.js     Three.js r128 (MIT)
 arduino/, bridge/          controller sketch and joystick bridge
 ```
@@ -108,8 +109,8 @@ arduino/, bridge/          controller sketch and joystick bridge
 - **Limitation:** 3D with shadows needs a reasonably modern laptop; very old machines will run slowly.
 - **Challenge:** making randomness feel earned. The AI only sees what you actually did, and the game shows you that list before the reveal.
 - **Challenge:** AI answers are unpredictable, so every answer goes through a validator that repairs or replaces anything broken.
-- **Challenge:** walking on a sphere. The player never moves: the planet rotates under them, and residents wander in the planet's own coordinates.
-- **Challenge:** Doki Doki style insight without judging single actions. The reading looks for patterns across the pond, the planet and the quizzes, and shows its receipts.
+- **Challenge:** a whole world from one number. Seeded value noise makes the hills, lakes and coast, props cluster into forests and meadows, and the spawn clearing is flattened so the village always fits.
+- **Challenge:** Doki Doki style insight without judging single actions. The reading looks for patterns across the pond, your world and the quizzes, and shows its receipts.
 
 ## Resources and credits
 

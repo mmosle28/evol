@@ -1,4 +1,5 @@
-// The planet: a tiny world you can walk all the way around in under a minute (Doki Doki Universe).
+// Your world: a whole open world generated from your seed (like Minecraft), with the residents' village
+// where you spawn (Doki Doki Universe).
 // Every resident has an identity card (likes, dislikes, favorite greeting, one request). You learn it by
 // talking to them and to their neighbors (gossip), then you can greet them, slap a sticker on the moment
 // (summon, LittleBigPlanet style), pick them up and throw them, or carry them to meet someone.
@@ -12,7 +13,8 @@ import { stage, makeCamera } from "../core/stage.js";
 import { W, H, font, wrapText, hint, box, dialogue, sticker, clamp, rect } from "../core/draw.js";
 import { UI, FONT, BODY_COLORS } from "../core/palette.js";
 import { makeRng } from "../core/rng.js";
-import { makePlanet, worldSky } from "../gfx/planet.js";
+import { worldSky } from "../gfx/planet.js";
+import { makeWorld } from "../gfx/terrain.js";
 import { BIOMES, lookOf, STICKERS, STICKER_IDS, GREETINGS, GREETING_IDS, prop } from "../gfx/biomes.js";
 import * as M from "../gfx/models.js";
 import { blip, music, ambience } from "../core/audio.js";
@@ -21,10 +23,9 @@ const THREE = window.THREE;
 const UP = new THREE.Vector3(0, 1, 0);
 const QUICK = new URLSearchParams(location.search).has("quick");
 const DAY_SECONDS = QUICK ? 90 : 300;
-// A big planet with a low camera: you stand inside the world and the horizon curves away gently.
-const R = 34, SPEED = 9, TURN = 2.4, REACH = 5;
+const SPEED = 11, TURN = 2.4, REACH = 5;
 
-let view, planet, world, rng, player, npcs, moths, home, t, dayT, mode, sel, near, lines, quiz, carried, flights, pops, toast, lastWarn;
+let view, terra, sky, world, rng, player, npcs, moths, home, t, dayT, mode, sel, near, lines, quiz, carried, flights, pops, toast, lastWarn;
 
 // ---------- Building ----------
 
@@ -35,37 +36,27 @@ function wrapCreature(body, color, scale) {
   return outer;
 }
 
-function orient(obj, dir, heading, lift = 0, spin = 0) {
-  obj.position.copy(dir).multiplyScalar(planet.heightAt(dir) + lift);
-  obj.quaternion.setFromUnitVectors(UP, dir).multiply(new THREE.Quaternion().setFromAxisAngle(UP, heading));
-  if (spin) obj.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), spin));
-}
-
 function build() {
   const scene = new THREE.Scene();
   rng = makeRng(game.seed ^ 0x9e3779b9);
-  // Keep space around where you land and where residents stand
-  const spawn = new THREE.Vector3(0, 1, 0);
-  const spots = [spawn.clone()];
-  const npcDirs = world.npcs.map((_, i) => { const a = i / world.npcs.length * Math.PI * 2 + 2.2, e = 0.32 + i * 0.1; const d = new THREE.Vector3(Math.cos(a) * Math.sin(e), Math.cos(e), Math.sin(a) * Math.sin(e)).normalize(); spots.push(d); return d; });
-  const mothDirs = [new THREE.Vector3(0.45, 0.85, -0.3).normalize(), new THREE.Vector3(-0.5, 0.8, 0.35).normalize()];
-  const homeDir = new THREE.Vector3(0.1, 1, 0.16).normalize(); // just behind you at the start
-  spots.push(...mothDirs, homeDir);
-  planet = makePlanet(world.biome, rng, { R, detail: 5, spots, propScale: 1.5, density: 4, look: world.look });
-  // Fog in the world's horizon color makes the distance soft and the world feel big
-  scene.fog = new THREE.Fog(planet.biome.sky[1], 18, 70);
-  scene.add(planet.group);
-  worldSky(scene, world.biome, { look: world.look });
+  terra = makeWorld(world.biome, rng, { look: world.look, density: 7 });
+  // Keep the village clearing open: residents, moths and your tent live around where you spawn
+  const spots = world.npcs.map((_, i) => { const a = -Math.PI / 2 + (i - (world.npcs.length - 1) / 2) * 0.75, r = 11 + (i % 2) * 6; return [Math.cos(a) * r, Math.sin(a) * r]; });
+  const mothSpots = [[24, -10], [-22, 8]], homeSpot = [2, 7];
+  scene.add(terra.group);
+  sky = worldSky(scene, world.biome, { look: world.look });
+  scene.fog = new THREE.Fog(terra.biome.sky[1], 35, 125);
 
-  // You
-  player = { obj: wrapCreature(game.life.creature.body, BODY_COLORS[game.life.creature.color], 0.75), heading: Math.PI, moving: false, bounce: 0, act: 0 };
+  // You, in the middle of the clearing, facing the village
+  player = { obj: wrapCreature(game.life.creature.body, BODY_COLORS[game.life.creature.color], 0.75), x: 0, z: 0, heading: Math.PI, moving: false, bounce: 0, act: 0 };
   scene.add(player.obj);
 
   // Residents
   npcs = world.npcs.map((d, i) => {
     const obj = wrapCreature(d.body, BODY_COLORS[d.color], 0.68);
-    planet.group.add(obj);
-    return { d, i, obj, dir: npcDirs[i], heading: rng() * 6.28, hearts: 1, met: false, talks: 0, done: false, acted: false, cardRead: false,
+    scene.add(obj);
+    const [x, z] = spots[i];
+    return { d, i, obj, x, z, hx: x, hz: z, heading: rng() * 6.28, hearts: 1, met: false, talks: 0, done: false, acted: false, cardRead: false,
       known: { likes: new Set(), dislikes: new Set(), greeting: false, request: false }, emote: null, state: "idle", wanderT: rng() * 3, flight: null };
   });
   // Quiz moths: tiny monks on floating rocks
@@ -75,26 +66,38 @@ function build() {
     const body = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.4, 6), M.mat(0x8a5ad0)); body.position.y = 1.4; g.add(body);
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 8, 6), M.mat(0xfff1dc)); head.position.y = 2.3; g.add(head);
     for (const s of [-1, 1]) { const w = new THREE.Mesh(new THREE.CircleGeometry(0.8, 6), new THREE.MeshStandardMaterial({ color: 0xffd84a, side: THREE.DoubleSide, flatShading: true })); w.position.set(s * 0.7, 1.7, -0.2); w.rotation.y = s * 0.6; g.add(w); g.userData[s < 0 ? "wl" : "wr"] = w; }
-    planet.group.add(g);
-    return { q, i, obj: g, dir: mothDirs[i], done: false };
+    scene.add(g);
+    return { q, i, obj: g, x: mothSpots[i][0], z: mothSpots[i][1], done: false };
   });
-  // Your little home (a tent in your color)
-  home = { obj: prop("tent", rng), dir: homeDir };
-  home.obj.scale.setScalar(1.3);
+  // Your little home (a tent in your color), right behind you
+  home = { obj: prop("tent", rng) };
+  home.obj.scale.setScalar(1.6);
   home.obj.traverse(m => { if (m.isMesh) m.material = M.mat(BODY_COLORS[game.life.creature.color]); });
-  planet.place(home.obj, homeDir, 0.5);
+  terra.place(home.obj, homeSpot[0], homeSpot[1], 0.5);
   const flag = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 3), M.mat(0xffffff)); flag.position.y = 2.3; flag.rotation.z = -Math.PI / 2; home.obj.add(flag);
 
-  // Third person: low and just behind your creature, looking ahead along the ground
-  const camera = makeCamera(58);
-  camera.position.set(0, R + 4.2, 8.5); camera.lookAt(0, R + 1.6, -8);
+  // Third person: the camera follows behind your creature
+  const camera = makeCamera(60);
   view = { scene, camera };
+  placeCamera(1);
 }
+
+/** Camera trails behind and above you, never dipping under a hill. */
+function placeCamera(k) {
+  const cam = view.camera, h = player.heading;
+  const tx = player.x - Math.sin(h) * 9, tz = player.z - Math.cos(h) * 9;
+  const ty = Math.max(terra.heightAt(tx, tz) + 2, player.obj.position.y) + 4.2;
+  cam.position.lerp(new THREE.Vector3(tx, ty, tz), k);
+  cam.lookAt(player.x + Math.sin(h) * 6, player.obj.position.y + 1.4, player.z + Math.cos(h) * 6);
+}
+
+const ground = (x, z) => Math.max(0, terra.heightAt(x, z));
+function stand(obj, x, z, heading, lift = 0) { obj.position.set(x, ground(x, z) + lift, z); obj.rotation.set(0, heading, 0); }
+const blocked = (x, z) => terra.isWater(x, z) || Math.max(Math.abs(x), Math.abs(z)) > terra.size * 0.38;
 
 // ---------- Helpers ----------
 
-const localUp = () => UP.clone().applyQuaternion(planet.group.quaternion.clone().invert());
-const worldPos = obj => obj.getWorldPosition(new THREE.Vector3());
+const worldPos = obj => obj.position.clone();
 const playerPos = () => player.obj.position.clone().add(new THREE.Vector3(0, 1, 0));
 const headOf = (obj, h = 4.2) => obj.localToWorld(new THREE.Vector3(0, h, 0));
 const sname = id => STICKERS[id][1];
@@ -110,12 +113,7 @@ function heart(n, delta) {
   pops.push({ obj: n.obj, glyph: delta > 0 ? "💖" : "💔", t: 0 });
 }
 
-function faceToward(n, targetLocal) {
-  const qUp = new THREE.Quaternion().setFromUnitVectors(UP, n.dir);
-  const b0 = new THREE.Vector3(0, 0, 1).applyQuaternion(qUp), b1 = new THREE.Vector3(1, 0, 0).applyQuaternion(qUp);
-  const d = targetLocal.clone().sub(n.dir.clone().multiplyScalar(targetLocal.dot(n.dir)));
-  if (d.lengthSq() > 1e-6) n.heading = Math.atan2(d.dot(b1), d.dot(b0));
-}
+function faceToward(n, x, z) { n.heading = Math.atan2(x - n.x, z - n.z); }
 
 function firstAct(n) {
   if (!n.acted) { n.acted = true; if (n.cardRead) stats().cardsBeforeActing++; }
@@ -213,17 +211,16 @@ function doSticker(n, sid) {
 
 function doLift(n) {
   firstAct(n); carried = n; n.state = "lifted"; mode = "carry"; stats().carries++;
-  view.scene.attach(n.obj); emote(n, n.d.lovesFlying ? "😆" : "😨"); blip("pop");
+  emote(n, n.d.lovesFlying ? "😆" : "😨"); blip("pop");
 }
 
 function release() {
   const n = carried; carried = null; mode = "walk";
+  const fx = Math.sin(player.heading), fz = Math.cos(player.heading);
   // Carried next to someone? Introduce them instead of throwing.
-  const other = npcs.filter(o => o !== n).map(o => ({ o, dd: worldPos(o.obj).distanceTo(playerPos()) })).sort((a, b) => a.dd - b.dd)[0];
-  if (other && other.dd < REACH + 1) {
-    planet.group.attach(n.obj);
-    const p = planet.group.worldToLocal(worldPos(player.obj).add(new THREE.Vector3(Math.sin(player.heading) * 2.5, 0, Math.cos(player.heading) * 2.5))).normalize();
-    n.dir = p; n.state = "idle"; stats().intros++;
+  const other = npcs.filter(o => o !== n).map(o => ({ o, dd: Math.hypot(o.x - player.x, o.z - player.z) })).sort((a, b) => a.dd - b.dd)[0];
+  if (other && other.dd < REACH + 1.5) {
+    n.x = player.x + fx * 2.5; n.z = player.z + fz * 2.5; n.hx = n.x; n.hz = n.z; n.state = "idle"; stats().intros++;
     const o = other.o;
     note(`Carried ${n.d.name} over to meet ${o.d.name}.`);
     if (n.d.request.type === "bring" && n.d.request.target === o.i && !n.done) { heart(o, 1); return complete(n, `met ${o.d.name}`); }
@@ -232,16 +229,15 @@ function release() {
     say(o.d.name, `Oh. Hi, ${n.d.name}. Did they just... carry you here?`);
     return;
   }
-  // Throw!
+  // Throw! Lands up to 14 steps ahead, never in the water.
   stats().tosses++; player.act = 1; blip("whoosh");
-  const a = 0.55, fx = Math.sin(player.heading), fz = Math.cos(player.heading);
-  const target = new THREE.Vector3(Math.sin(a) * fx, Math.cos(a), Math.sin(a) * fz).applyQuaternion(planet.group.quaternion.clone().invert()).normalize();
-  planet.group.attach(n.obj);
-  n.state = "flying"; n.flight = { from: localUp(), to: target, k: 0 };
+  let d = 14; while (d > 2 && blocked(player.x + fx * d, player.z + fz * d)) d -= 2;
+  n.state = "flying";
+  n.flight = { fx: player.x, fz: player.z, fy: n.obj.position.y, tx: player.x + fx * d, tz: player.z + fz * d, k: 0 };
 }
 
 function land(n) {
-  n.state = "idle"; n.dir = n.flight.to; n.flight = null;
+  n.state = "idle"; n.x = n.flight.tx; n.z = n.flight.tz; n.hx = n.x; n.hz = n.z; n.flight = null;
   if (n.d.lovesFlying) { stats().tossLoved++; heart(n, 1); emote(n, "🤩"); note(`Threw ${n.d.name} into the sky. They loved it.`); score({ playful: 1, bold: 1 }); }
   else { stats().tossHated++; heart(n, -1); emote(n, "😵"); note(`Threw ${n.d.name} into the sky. They did not love it.`); score({ playful: 1, kind: -1 }); }
   if (n.d.request.type === "fly" && !n.done) return complete(n, "a trip to the sky");
@@ -254,7 +250,7 @@ function menuItems() {
 
 // ---------- Scene ----------
 
-export const planetScene = {
+export const worldScene = {
   enter(data) {
     world = data.world || game.world;
     game.world = world;
@@ -268,66 +264,69 @@ export const planetScene = {
     t = 0; dayT = 0; mode = "walk"; sel = 0; near = null; lines = null; quiz = null; carried = null; pops = []; toast = null; lastWarn = 0;
     music(BIOMES[world.biome].notes); ambience("quiet");
     setToast(`Welcome to ${world.name}!`);
-    if (new URLSearchParams(location.search).has("debug")) window.evolPlanet = { get mode() { return mode; }, get near() { return near; }, npcs: () => npcs, moths: () => moths, act: (name, ...a) => ({ doTalk, doGreet, doSticker, doLift, release, complete })[name](...a), setDay: v => { dayT = v; }, goTo: i => { const d = (i < npcs.length ? npcs[i].dir : moths[i - npcs.length].dir).clone(); const off = new THREE.Vector3(0, 0, 1).sub(d.clone().multiplyScalar(d.z)).normalize(); planet.group.quaternion.setFromUnitVectors(d.clone().addScaledVector(off, -0.12).normalize(), UP); } };
+    if (new URLSearchParams(location.search).has("debug")) window.evolWorld = { get mode() { return mode; }, get near() { return near; }, npcs: () => npcs, moths: () => moths, act: (name, ...a) => ({ doTalk, doGreet, doSticker, doLift, release, complete })[name](...a), setDay: v => { dayT = v; }, goTo: i => { const o = i < npcs.length ? npcs[i] : moths[i - npcs.length]; player.x = o.x; player.z = o.z + 4; player.heading = Math.PI; placeCamera(1); } };
   },
   exit() { music(null); },
   update(dt) {
-    t += dt; planet.update(dt);
+    t += dt; terra.update(dt, player);
     if (mode === "walk" || mode === "carry") dayT = Math.min(1, dayT + dt / DAY_SECONDS);
     if (toast) { toast.t -= dt; if (toast.t <= 0) toast = null; }
     for (const p of pops) p.t += dt;
     pops = pops.filter(p => p.t < 1.6);
 
-    // ----- Movement: the planet turns under you -----
-    // Left/right turns, up/down walks. You always face away from the camera; the world turns around you.
+    // ----- Movement: left/right turns, up/down walks. Water and the world's edge stop you. -----
     const turn = Math.abs(Input.x) > 0.15 ? Input.x : 0, fwd = Math.abs(Input.y) > 0.15 ? -Input.y : 0;
     player.moving = false;
     if ((mode === "walk" || mode === "carry") && (turn || fwd)) {
-      if (turn) planet.group.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(UP, turn * TURN * dt));
-      if (fwd) planet.group.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), fwd * SPEED * dt / R));
+      player.heading -= turn * TURN * dt;
+      if (fwd) {
+        const step = fwd * SPEED * dt, nx = player.x + Math.sin(player.heading) * step, nz = player.z + Math.cos(player.heading) * step;
+        if (!blocked(nx, nz)) { player.x = nx; player.z = nz; }
+        else if (!blocked(nx, player.z)) player.x = nx;
+        else if (!blocked(player.x, nz)) player.z = nz;
+      }
       player.moving = true;
     }
-    const up = localUp();
-    player.obj.position.set(0, planet.heightAt(up), 0);
-    player.obj.rotation.set(0, player.heading, 0);
+    stand(player.obj, player.x, player.z, player.heading);
     player.bounce += dt * (player.moving ? 14 : 3);
     player.act = Math.max(0, player.act - dt * 2);
     const inner = player.obj.userData.inner;
     inner.position.y = Math.abs(Math.sin(player.bounce)) * (player.moving ? 0.35 : 0.06) + Math.sin(player.act * Math.PI) * 1.2;
-    inner.rotation.z = player.act * Math.PI * 2 * 0;
     player.obj.rotation.y += player.act * 6.28 * (1 - player.act);
     M.animateCreature(inner, t, player.moving);
+    placeCamera(Math.min(1, dt * 6));
+    sky.sun.position.set(player.x + 30, 60, player.z + 25); sky.sun.target.position.set(player.x, 0, player.z);
 
-    // ----- Residents wander, turn to face you, fly when thrown -----
-    const pLocal = up.clone();
+    // ----- Residents wander near their homes, turn to face you, fly when thrown -----
     for (const n of npcs) {
       if (n.emote) { n.emote.t -= dt; if (n.emote.t <= 0) n.emote = null; }
       M.animateCreature(n.obj.userData.inner, t + n.i, n.state === "idle");
       if (n.state === "lifted") {
-        n.obj.position.set(0, player.obj.position.y + 3.1 + Math.sin(t * 6) * 0.15, 0);
-        n.obj.quaternion.setFromAxisAngle(UP, player.heading + Math.sin(t * 3) * 0.3);
+        n.obj.position.set(player.x, player.obj.position.y + 3.1 + Math.sin(t * 6) * 0.15, player.z);
+        n.obj.rotation.set(0, player.heading + Math.sin(t * 3) * 0.3, 0);
+        n.x = player.x; n.z = player.z;
         continue;
       }
       if (n.state === "flying") {
         const f = n.flight; f.k = Math.min(1, f.k + dt / 1.2);
-        const dir = f.from.clone().lerp(f.to, f.k).normalize();
-        orient(n.obj, dir, n.heading, Math.sin(Math.PI * f.k) * 9 + 3 * (1 - f.k), f.k * Math.PI * 4);
+        const x = f.fx + (f.tx - f.fx) * f.k, z = f.fz + (f.tz - f.fz) * f.k;
+        n.obj.position.set(x, ground(x, z) + Math.sin(Math.PI * f.k) * 10 + 3 * (1 - f.k), z);
+        n.obj.rotation.set(f.k * Math.PI * 4, n.heading, 0);
         if (f.k >= 1) land(n);
         continue;
       }
-      const close = n.dir.angleTo(pLocal) * R < 7;
-      if (close) faceToward(n, pLocal);
+      if (Math.hypot(n.x - player.x, n.z - player.z) < 8) faceToward(n, player.x, player.z);
       else {
         n.wanderT -= dt;
         if (n.wanderT < 0) { n.wanderT = 2 + rng() * 4; n.heading += (rng() - 0.5) * 2.4; }
-        const qUp = new THREE.Quaternion().setFromUnitVectors(UP, n.dir).multiply(new THREE.Quaternion().setFromAxisAngle(UP, n.heading));
-        const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(qUp);
-        n.dir.addScaledVector(fwd, dt * 1.1 / R).normalize();
+        if (Math.hypot(n.x - n.hx, n.z - n.hz) > 9) n.heading = Math.atan2(n.hx - n.x, n.hz - n.z);
+        const nx = n.x + Math.sin(n.heading) * dt * 1.3, nz = n.z + Math.cos(n.heading) * dt * 1.3;
+        if (blocked(nx, nz)) n.heading += Math.PI; else { n.x = nx; n.z = nz; }
       }
-      orient(n.obj, n.dir, n.heading);
+      stand(n.obj, n.x, n.z, n.heading);
     }
     for (const m of moths) {
-      orient(m.obj, m.dir, t * 0.4, 3.5 + Math.sin(t * 1.5 + m.i) * 0.5);
+      stand(m.obj, m.x, m.z, t * 0.4, 3.5 + Math.sin(t * 1.5 + m.i) * 0.5);
       m.obj.userData.wl.rotation.y = 0.6 + Math.sin(t * 9) * 0.5; m.obj.userData.wr.rotation.y = -0.6 - Math.sin(t * 9) * 0.5;
     }
 
@@ -399,10 +398,10 @@ export const planetScene = {
   },
 
   draw(g) {
-    const b = lookOf(world.biome, world.look);
+    const b = terra.biome;
     // ----- HUD: world sticker, day bar, friends -----
     g.fillStyle = "rgba(43,35,64,0.72)"; rect(g, 24, 20, 320, 96, 26); g.fill();
-    sticker(g, 70, 66, 64, "🪐", { tilt: -0.1 });
+    sticker(g, 70, 66, 64, "🗺️", { tilt: -0.1 });
     g.textAlign = "left"; g.fillStyle = UI.white; g.font = font(28, 700, FONT.title);
     g.fillText(world.name, 112, 56); g.font = font(14, 600); g.fillStyle = "rgba(255,255,255,0.75)"; g.fillText(b.label.toUpperCase() + "  ·  DAY", 113, 78);
     g.fillStyle = "rgba(255,255,255,0.25)"; rect(g, 112, 90, 200, 12, 6); g.fill();
@@ -444,7 +443,7 @@ export const planetScene = {
     // ----- Mode overlays -----
     if (mode === "walk") {
       if (near) hint(g, near.kind === "npc" ? `Button: ${near.n.met ? near.n.d.name : "say hi"}` : near.kind === "moth" ? "Button: answer the moth" : "Button: your tent");
-      else hint(g, "Up: walk   ·   Left / right: turn");
+      else hint(g, "Up: walk   ·   Left / right: turn   ·   explore!");
     } else if (mode === "carry") {
       hint(g, "Carrying " + carried.d.name + ".  Button: throw (or set down next to someone)");
     } else if (mode === "menu") {
