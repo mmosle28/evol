@@ -239,7 +239,8 @@ function tick(dt) {
   puffs = puffs.filter(p => { if (p.t > 0.6) { view.scene.remove(p.m); return false; } return true; });
   // Your creature trots to a spot just in front of the cursor, on the ground or a pier
   const tx = cursor.x + 1.2, tz = cursor.z + CELL * 0.9, dx = tx - me.x, dz = tz - me.z, d = Math.hypot(dx, dz);
-  if (d > 0.3) { const sp = Math.min(d, dt * 16); me.x += dx / d * sp; me.z += dz / d * sp; me.obj.rotation.y = Math.atan2(dx, dz); }
+  if (fixedCam) { /* screenshot mode: hold the pose */ }
+  else if (d > 0.3) { const sp = Math.min(d, dt * 16); me.x += dx / d * sp; me.z += dz / d * sp; me.obj.rotation.y = Math.atan2(dx, dz); }
   else me.obj.rotation.y += (Math.atan2(cursor.x - me.x, cursor.z - me.z) - me.obj.rotation.y) * Math.min(1, dt * 4);
   me.hop = Math.max(0, me.hop - dt * 2.5);
   const ci = Math.round(me.x / CELL), cj = Math.round(me.z / CELL);
